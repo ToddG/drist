@@ -1,0 +1,76 @@
+.Dd $Mdocdate: July 17 2018 $
+.Dt DRIST 1
+.Os
+.Sh NAME
+.Nm drist
+.Nd a remote deployment tool
+.Sh SYNOPSIS
+.Nm 
+.Ar server
+.Sh DESCRIPTION
+
+.Nm
+is a tool to configure remote servers using
+.Xr ssh 1 
+and
+.Xr rsync 1 .
+.Nm
+has been designed to be simple, so it may not offers features you want.
+
+When you run
+.Nm
+, it will look at two special directories in the current working directory.
+
+The first is
+.Ar files
+and the content of this folder will be copied on the remote server
+.Ar server
+from the root filesystem /.
+
+The second directory is
+.Ar files-servername
+with
+.Ar servername
+being the result of the command
+.Ql hostname -s
+on the remote server. The content of this folder will be copied on the remote server
+.Ar server
+from the root filesystem /. This folder is useful if you need to add some files only
+on certains servers.
+
+After the files are copied,
+.Nm
+will look at two files in the current working directory.
+
+The first file is
+.Ar script
+and will be copied on the remote server and then executed and deleted after execution
+(shall the script success or fail).
+
+The second file is
+.Ar script-hostname
+with
+.Ar servername
+being the result of the command
+.Ql hostname -s
+, if it exists, it will be copied on the remote server and then executed and deleted after execution
+(shall the script success or fail). This is useful if you need to run commands on a particular
+servers.
+
+I recommend to write small "modules" installing required packages for a task and providing
+the files needed rather than an all-in-one module to deploy an entire system.
+
+.Nm 
+does not take care of permissions and ownership. Thoses should be modified by the
+.Ar script
+file.
+.Sh EXIT 
+.Ex -std notes
+.Sh SEE ALSO
+.Xr rsync 1
+.Sh Authors
+.An -nosplit
+The
+.Nm
+program was written by
+.An Solène Rapenne Aq Mt solene@perso.pw
