@@ -1,4 +1,4 @@
-# notes – a console notes manager using git
+# drist – a simple hosts deployment tool
 # See the LICENSE file for copyright and license details.
 .POSIX:
 
