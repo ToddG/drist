@@ -20,8 +20,8 @@ then
 	if [ -f "$LIST" ]
 	then
 		find files/ -type f | cut -d '/' -f 2- > "${LIST}"
-		cat $LIST
-		rsync -vlD --files-from="${LIST}" files/ "${1}":/
+		printf 'Copying files :\n' ; cat $LIST
+		rsync -lD --files-from="${LIST}" files/ "${1}":/
 		rm "$LIST"
 	fi
 fi
@@ -32,13 +32,15 @@ then
 	if [ -f "$LIST" ]
 	then
 		find "files-${HOSTNAME}/" -type f | cut -d '/' -f 2- > "${LIST}"
-		rsync -vlD --files-from="${LIST}" "files-${HOSTNAME}/" "${1}":/
+		printf 'Copying files only for %s:\n' "${HOSTNAME}" ; cat $LIST
+		rsync -lD --files-from="${LIST}" "files-${HOSTNAME}/" "${1}":/
 		rm "$LIST"
 	fi
 fi
 
 if [ -f "script" ]
 then
+	printf 'Executing script\n'
 	cat "script" | \
 		ssh "${1}" 'DRIST=$(mktemp /tmp/drist.XXXXXXXXXXXX) &&
 			    cat - > "$DRIST" &&
@@ -49,6 +51,7 @@ fi
 
 if [ -f "script-${HOSTNAME}" ]
 then
+	printf 'Executing script only for %s:\n' "${HOSTNAME}"
 	cat "script-${HOSTNAME}" | \
 		ssh "${1}" 'DRIST=$(mktemp /tmp/drist.XXXXXXXXXXXX) &&
 			    cat - > "$DRIST" &&
