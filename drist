@@ -6,8 +6,9 @@ usage() {
 }
 
 
-while getopts se: arg; do
+while getopts nse: arg; do
 	case ${arg} in
+		n) SIMULATE=1 ;;
 		s) SUDO=1 ;;
 		e) SUDO_BIN="${OPTARG}" ;;
 		*) usage ;;
@@ -32,7 +33,7 @@ fi
 if [ "$#" -ne 1 ]; then
 	usage
 else
-	HOSTNAME=$(ssh "$1" "uname -n")
+	HOSTNAME=$(ssh "$1" "${EXEC} uname -n")
 	if [ "$?" -ne 0 ]; then
 		echo "Error while ssh ${1}"
 		exit 2
@@ -48,9 +49,12 @@ copy_files() {
 		LIST=$(mktemp /tmp/drist-rsync.XXXXXXXXXX)
 		if [ -f "$LIST" ]
 		then
-			printf 'Copying files:\n'
-			find "${1}"/ -type f | cut -d '/' -f 2- | tee "${LIST}"
-			rsync --rsync-path="${EXEC} rsync" -lD --files-from="${LIST}" "${1}/" "${2}":/
+			printf 'Copying files from folder "%s":\n' "$1"
+			find "${1}"/ -type f | cut -d '/' -f 2- | tee "${LIST}" | sed 's/^/	/'
+			if [ "$SIMULATE" -ne 1 ]
+			then
+				rsync --rsync-path="${EXEC} rsync" -lD --files-from="${LIST}" "${1}/" "${2}":/
+			fi
 			rm "$LIST"
 		fi
 	fi
@@ -61,12 +65,15 @@ copy_files() {
 remote_script() {
 	if [ -f "${1}" ]
 	then
-		printf 'Executing script\n'
-		ssh "${2}" "DRIST=$(mktemp /tmp/drist.XXXXXXXXXXXX) &&
-		    cat - > \$DRIST &&
-		    chmod u+x \$DRIST &&
-		    ${EXEC} \$DRIST ;
-		    rm \$DRIST" < "$1"
+		printf 'Executing file "%s":\n' "$1"
+		if [ "$SIMULATE" -ne 1 ]
+		then
+			ssh "${2}" "DRIST=$(mktemp /tmp/drist.XXXXXXXXXXXX) &&
+			    cat - > \$DRIST &&
+			    chmod u+x \$DRIST &&
+			    ${EXEC} \$DRIST ;
+			    rm \$DRIST" < "$1"
+		fi
 	fi
 }
 
@@ -79,10 +86,17 @@ delete_files() {
 		LIST=$(mktemp /tmp/drist-rsync.XXXXXXXXXX)
 		if [ -f "$LIST" ]
 		then
-			printf 'Removing files:\n' 
+			printf 'Removing files from folder "%s":\n' "$1" 
 			find "$1" -type f | sed 's/"/\\&/' | \
-				awk -v path="${1}" '{ printf "\"%s\" ",substr($0,length(path)+1)}' > "${LIST}"
-			test -s "$LIST" && ssh "$2" "${EXEC} rm -v $(cat $LIST)"
+				awk -v path="${1}" '{ printf "\"%s\" ",substr($0,length(path)+1)}' | \
+				tee "${LIST}" | sed 's/^/	/'
+			printf '\n' # add a new line
+
+			if [ "$SIMULATE" -ne 1 ]
+			then
+				test -s "$LIST" && ssh "$2" "${EXEC} rm $(cat $LIST)"
+			fi
+			rm $LIST
 		fi
 	fi
 }

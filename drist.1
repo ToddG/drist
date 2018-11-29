@@ -6,9 +6,17 @@
 .Nd dumb remote installer shell tool, a remote deployment tool
 .Sh SYNOPSIS
 .Nm
+.Op Fl n
 .Op Fl s Op Fl e Ar sudo|doas
 .Ar server
 .Sh OPTIONS
+.Op Fl n
+to simulate.
+Tells 
+.Nm
+to show what will happens if it runs.
+This will make a ssh connection to check the remote hostname.
+
 .Op Fl s
 use a program to execute a command as root on the remote server.
 Default is sudo.
