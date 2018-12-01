@@ -2,7 +2,7 @@
 # See the LICENSE file for copyright and license details.
 .POSIX:
 
-VERSION = 0.1
+VERSION = 1.02
 
 BIN    = drist
 PREFIX = /usr
