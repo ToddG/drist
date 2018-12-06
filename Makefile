@@ -3,20 +3,17 @@
 .POSIX:
 
 BIN    = drist
-PREFIX = /usr
-BINDIR = ${PREFIX}/bin
-MANDIR = ${PREFIX}/share/man
+PREFIX ?= /usr
+BINDIR ?= ${PREFIX}/bin
+MANDIR ?= ${PREFIX}/share/man
 
 all:
 
 install: 
 	@echo installing executable to "${DESTDIR}${PREFIX}/bin"
-	@mkdir -p "${DESTDIR}${BINDIR}"
-	@cp -f "${BIN}" "${DESTDIR}${BINDIR}/${BIN}"
-	@chmod 755 "${DESTDIR}${BINDIR}/${BIN}"
+	@install -D "${BIN}" "${DESTDIR}${BINDIR}/${BIN}"
 	@echo installing manual page to ${DESTDIR}${MANDIR}/man1
-	@mkdir -p ${DESTDIR}${MANDIR}/man1
-	@chmod 644 ${DESTDIR}${MANDIR}/man1/${BIN}.1
+	@install -D "${BIN}.1" "${DESTDIR}${MANDIR}/man1/${BIN}.1"
 
 uninstall:
 	@echo removing executable file from "${DESTDIR}${PREFIX}/bin"
