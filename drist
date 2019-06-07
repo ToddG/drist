@@ -73,11 +73,13 @@ remote_script() {
 		printf 'Executing file "%s":\n' "$1"
 		if [ "$SIMULATE" -ne 1 ]
 		then
-			ssh $SSH_PARAMS "${2}" "DRIST=$(mktemp /tmp/drist.XXXXXXXXXXXX) &&
+			dr="$(mktemp ./drist.XXXXXXXXXXXX)"
+			ssh $SSH_PARAMS "${2}" "DRIST=${dr} &&
 			    cat - > \$DRIST &&
 			    chmod u+x \$DRIST &&
 			    ${EXEC} \$DRIST ;
 			    rm \$DRIST" < "$1"
+			rm "$dr"
 		fi
 	fi
 }
