@@ -86,14 +86,13 @@ remote_script() {
 
 # $1 = directory name
 # $2 = remote server
-# it uses rm -v which is not POSIX compliant but most systems have it
 delete_files() {
 	if [ -d "${1}" ]
 	then
 		LIST=$(mktemp /tmp/drist-rsync.XXXXXXXXXX)
 		if [ -f "$LIST" ]
 		then
-			printf 'Removing files from folder "%s":\n' "$1" 
+			printf 'Removing files from folder "%s":\n' "$1"
 			find "$1" -type f | sed 's/"/\\&/' | \
 				awk -v path="${1}" '{ printf "\"%s\" ",substr($0,length(path)+1)}' | \
 				tee "${LIST}" | sed 's/^/	/'
