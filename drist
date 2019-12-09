@@ -110,10 +110,10 @@ delete_files() {
 
 copy_files "files" "$1"
 copy_files "files-${HOSTNAME}" "$1"
-remote_script "script" "$1"
-remote_script "script-${HOSTNAME}" "$1"
 delete_files "absent" "$1"
 delete_files "absent-${HOSTNAME}" "$1"
+remote_script "script" "$1"
+remote_script "script-${HOSTNAME}" "$1"
 
 # close socket if persistance is actived
 if [ "$SSHONCE" -eq 1 ]
