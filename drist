@@ -5,15 +5,17 @@ SUDO=0
 SUDO_BIN=sudo
 EXEC=""
 SSHONCE=0
+TRUNCATE=0
 
 usage() {
-	echo "$0 [-n] [-s [-e sudo|doas]] server"
+	echo "$0 [-n] [-d] [-s [-e sudo|doas]] server"
 	exit 0
 }
 
-while getopts pnse: arg; do
+while getopts pndse: arg; do
 	case ${arg} in
 		n) SIMULATE=1 ;;
+		d) TRUNCATE=1 ;;
 		s) SUDO=1 ;;
 		e) SUDO_BIN="${OPTARG}" ;;
 		p) SSHONCE=1 ;;
@@ -42,6 +44,10 @@ else
 	if [ "$?" -ne 0 ]; then
 		echo "Error while ssh ${1}"
 		exit 2
+	fi
+
+	if [ "$TRUNCATE" -eq 1 ]; then
+		HOSTNAME="${HOSTNAME%%.*}"
 	fi
 fi
 

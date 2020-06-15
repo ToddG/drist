@@ -1,4 +1,4 @@
-.Dd $Mdocdate: July 17 2018 $
+.Dd $Mdocdate: April 27 2020 $
 .Dt DRIST 1
 .Os
 .Sh NAME
@@ -8,6 +8,7 @@
 .Nm
 .Op Fl p
 .Op Fl n
+.Op Fl d
 .Op Fl s Op Fl e Ar sudo|doas
 .Ar server
 .Sh OPTIONS
@@ -22,6 +23,11 @@ Tells
 .Nm
 to show what will happens if it runs.
 This will make a ssh connection to check the remote hostname.
+.Op Fl d
+to truncate reported hostname.
+Tells
+.Nm
+to truncate the reported remote hostname to the left-most component.
 .Op Fl s
 use a program to execute a command as root on the remote server.
 Default is sudo.
