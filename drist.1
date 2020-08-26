@@ -10,7 +10,7 @@
 .Op Fl n
 .Op Fl d
 .Op Fl s Op Fl e Ar sudo|doas
-.Ar server
+.Ar server ...
 .Sh OPTIONS
 .Op Fl p
 to use persistent ssh connection, allowing to ssh only once
@@ -59,49 +59,39 @@ by calling
 After that following steps will be executed:
 .Bl -enum -offset indent -compact
 .It
-If folder
+If directory
 .Ar files
 exists, its content is copied to
 .Ar server
 using
-.Xr rsync 1 .
+.Xr rsync 1
+in a temporary directory in ~/.drist_files_XXXXXXXX
 .It
-If folder
+If directory
 .Ar files- Ns Em HOSTNAME
 exists, its content is copied to
 .Ar server
 using
-.Xr rsync 1 .
-.It
-If folder
-.Ar absent
-exists, filenames in it are deleted on
-.Ar server .
-.It
-If folder
-.Ar absent- Ns Em HOSTNAME
-exists, filenames in it are deleted on
-.Ar server .
+.Xr rsync 1
+in a temporary directory in ~/.drist_files_XXXXXXXX .
 .It
 If file
 .Ar script
 exists, it is copied to
 .Ar server
-and executed there.
+and executed from the temporary directory.
 .It
 If file
 .Ar script- Ns Em HOSTNAME
 exists, it is copied to
 .Ar server
-and executed there.
+and executed from the temporary directory.
 .El
 .Pp
 The presence of each of those files or directories is optional.
 .Pp
 All files in either
 .Ar files
-or
-.Ar absent
 or
 .Ar files- Ns Em HOSTNAME
 etc. are relative to the root (/) directory.
