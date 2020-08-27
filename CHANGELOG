@@ -1,3 +1,10 @@
+V2.02 - 2020-08-27
+==================
+
+- Fix an issue in which drist wasn't calling exit when the
+  temporary directory can't be created
+
+
 V2.01 - 2020-08-27
 ==================
 

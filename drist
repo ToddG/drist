@@ -48,6 +48,7 @@ create_temp() {
     TEMPDIR=$(ssh $SSH_PARAMS "$1" "mktemp -d ~/.drist_files_XXXXXXXXXXXXXXX")
     if [ "$TEMPDIR" = "" ]; then
         echo "mktemp error, aborting"
+        exit 1
     fi
 }
 
