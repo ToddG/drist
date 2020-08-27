@@ -90,7 +90,7 @@ fi
 # start looping over server list
 if [ -f "$1" ]
 then
-	SERVER_LIST="$(cat $1 | tr '\n' ' ')"
+	SERVER_LIST="$(tr '\n' ' ' < $1)"
 else
 	SERVER_LIST="$@"
 fi
