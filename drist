@@ -107,7 +107,7 @@ do
 	echo "Running on ${remote_server}"
 
 	# check if host exists
-	HOSTNAME=$(ssh $SSH_PARAMS "${remote_server}" "${EXEC} uname -n")
+	HOSTNAME=$(ssh $SSH_PARAMS "${remote_server}" "uname -n")
 	if [ "$?" -ne 0 ]; then
 		echo "Error while ssh ${remote_server}"
 		exit 2
