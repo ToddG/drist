@@ -23,7 +23,7 @@ copy_files() {
 		then
 			printf 'Copying files from "%s" to temporary directory %s:\n' "$1" "$3"
 			find "${1}"/ -type f -or -type l | cut -d '/' -f 2- | tee "${LIST}" | sed 's/^/	\//'
-			rsync -e "ssh $SSH_PARAMS" -lD --files-from="${LIST}" "${1}/" "${2}":"/${3}"
+			rsync -t -e "ssh $SSH_PARAMS" -lD --files-from="${LIST}" "${1}/" "${2}":"/${3}"
 			rm "$LIST"
 		fi
 	fi
