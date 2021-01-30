@@ -6,7 +6,6 @@
 .Nd dumb remote installer shell tool, a remote deployment tool
 .Sh SYNOPSIS
 .Op Fl p
-.Op Fl n
 .Op Fl d
 .Op Fl s Op Fl e Ar sudo|doas
 .Ar destination
@@ -17,12 +16,6 @@ to use persistent ssh connection, allowing to ssh only once
 for the differents steps.
 This uses ControlMaster feature from
 .Xr ssh 1 .
-.It Op Fl n
-to simulate.
-Tells
-.Nm
-to show what will happens if it runs.
-This will make a ssh connection to check the remote hostname.
 .It Op Fl d
 to truncate reported hostname.
 Tells

@@ -8,12 +8,13 @@ TRUNCATE=0
 TEMPDIR=""
 
 usage() {
-	echo "$0 [-n] [-d] [-s [-e sudo|doas]] server [...]"
+	echo "$0 [-p] [-d] [-s [-e sudo|doas]] server [...]"
 	exit 0
 }
 
 # $1 = directory name
 # $2 = remote server
+# $3 = tempdir
 copy_files() {
 	# -l = keep symlink / -D = special device
 	if [ -d "${1}" ]
