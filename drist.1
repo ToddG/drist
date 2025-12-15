@@ -1,132 +1,122 @@
-.Dd $Mdocdate: April 27 2020 $
-.Dt DRIST 1
+.Dd Feb 03 2024
+.Dt drist 1
 .Os
+.Au John Kaul
+.Pp
 .Sh NAME
-.Nm drist
-.Nd dumb remote installer shell tool, a remote deployment tool
+.Nm drist 
+.Nd dumb remote installer shell tool, a remote deployment tool.
+.Pp
 .Sh SYNOPSIS
-.Op Fl p
-.Op Fl d
-.Op Fl s Op Fl e Ar sudo|doas
-.Ar destination
+drist [-p] [-d] [-s [-e sudo|doas]] [-i script] [-f files-directory] [-F file-to-copy] destination [...]
+.Pp
 .Sh OPTIONS
 .Bl -tag -width Ds
-.It Op Fl p
-to use persistent ssh connection, allowing to ssh only once
-for the differents steps.
-This uses ControlMaster feature from
-.Xr ssh 1 .
-.It Op Fl d
-to truncate reported hostname.
-Tells
-.Nm
-to truncate the reported remote hostname to the left-most component.
-.It Op Fl s
-use a program to execute a command as root on the remote server.
-Default is sudo.
-.It Op Fl e Ar binary
-binary to use for executing the commands as root.
-This flag is only useful when used with
-.Fl s .
-.It Ar destination
-Specify the remote servers you want drist to work on.
-.Ar destination
-can be a file containing a list of hosts, one per line or
-it can be addresses passed in the command line.
-If you specify multiples servers,
-.Nm
-will loop over the list respecting the list order.
-Note that only one file can be used in the command line.
+.It Fl p
+Use persistent ssh connection, allowing ssh only once for the
+different steps.  This uses ControlMaster feature from ssh(1).
+.Pp
+.It Fl d
+Truncate reported hostname.  Tells drist to truncate the reported
+remote hostname to the left-most component.
+.Pp
+.It Fl s
+Use a program to execute a command as root on the remote server.
+Default is `doas`.
+.Pp
+.It Fl e
+Binary to use for executing the commands as root.  This flag is
+only useful when used with the -s flag.
+.Pp
+.It Fl i
+Use a specified script instead of a file called `script` found in
+local directory.
+.Pp
+.It Fl f
+Use a specified directory to upload instead of a local directory
+of `files` directory.
+.Pp
+.It Fl F
+A single file to upload instead of one found in a `files` directory.
+.Pp
+.It Fl destination
+Specify the remote servers you want drist to work on. The
+destination can be a file containing a list of hosts, one per line
+or it can be addresses passed in the command line.  If you specify
+multiples servers, drist will loop over the list respecting the
+list order.  Note that only one file can be used in the command
+line.
 .El
+.Pp
 .Sh DESCRIPTION
-.Nm
-is a tool to configure remote servers using
-.Xr ssh 1
-and
-.Xr rsync 1 .
-.Nm
-has been designed to be simple, so it may not offer all the features you want.
+drist is a tool to configure remote servers using ssh(1) and
+scp(1).
 .Pp
-When you run
-.Nm
-, it will look at a set of special directories in the current working
-directory.
-.Nm
-will connect to
-.Ar server
-via
-.Xr ssh 1
-and request the remote
-.Em HOSTNAME
-by calling
-.Ql uname -n .
+When run without 'f', 'F', or 'i' optional switches, drist will
+look for a directory called "files" and/or a script called
+"script" in the current working directory.
 .Pp
-After that following steps will be executed:
-.Bl -enum -offset indent -compact
-.It
-If directory
-.Ar files
-exists, its content is copied to
-.Ar server
-using
-.Xr rsync 1
-in a temporary directory in ~/.drist_files_XXXXXXXX
-.It
-If directory
-.Ar files- Ns Em HOSTNAME
-exists, its content is copied to
-.Ar server
-using
-.Xr rsync 1
-in a temporary directory in ~/.drist_files_XXXXXXXX .
-.It
-If file
-.Ar script
-exists, it is copied to
-.Ar server
-and executed from the temporary directory.
-.It
-If file
-.Ar script- Ns Em HOSTNAME
-exists, it is copied to
-.Ar server
-and executed from the temporary directory.
-.El
+- If the current working directory contains a directory called
+either: 'files' or 'files-HOSTNAME' its contents are copied to the
+suppled 'destination'.
 .Pp
-The presence of each of those files or directories is optional.
+- If the current working directory contains a file called either: 'scrpt' 
+or 'script-HOSTNAME' it is copied to the supplied 'destination'.
 .Pp
-All files in either
-.Ar files
-or
-.Ar files- Ns Em HOSTNAME
-etc. are relative to the root (/) directory.
-The specific files for
-.Em HOSTNAME
-are worked on after the common files.
+.Em NOTE
+The 'HOSTNAME' string in: 'files-HOSTNAME' and 'sript-HOSTNAME', 
+files are placeholder values. drist will connect to server via
+ssh(1) and request the remote HOSTNAME by calling 'uname -n' and
+if it matches the 'HOSTNAME' in the directory/file name's their
+contents will be uploaded and/or executed on the remote host (e.g.
+a directory called: "files-server.local" would only copy files to
+a host who's hostname is: "server.local").
 .Pp
-I recommend to write small "modules" which would install the required
-packages for a task and provide the files needed, rather than writing a
-full-blown module for deploying an entire system at once.
-.Nm
-does not handle file permissions and ownership.
-Those should be modified by the
-.Ar script
-file.
+drist initally uploads files to the remote host into a temporary
+directory (e.g. ~/.drist_files_XXXXXXXX) before moving and/or
+executing them.
+.Pp
 .Sh EXAMPLES
-Please see the
-.Ar examples
-directory in the
-.Nm
-distribution.
+The following examples demonstrate usage with the optional file and
+directory specifier flags for clarity.
+.Pp
+Upload and execute a script ("setup.sh") on the ACME host.
+.Bd -literal -offset indent
+   # drist -i /place/where/scripts/reside/setup.sh ACME
+.Ed
+.Pp
+Upload and execute a script ("setup.sh") on the ACME host using elevated permissions with `doas`.
+.Bd -literal -offset indent
+   # drist -s -i /place/where/scripts/reside/setup.sh ACME
+.Ed
+.Pp
+Upload and execute a script ("setup.sh") on the ACME host using elevated permissions with `sudo`.
+.Bd -literal -offset indent
+   # drist -s -e sudo -i /place/where/scripts/reside/setup.sh ACME
+.Ed
+.Pp
+Upload a file ("upload.file") to the ACME host.
+.Bd -literal -offset indent
+    # drist -F /place/where/files/reside/upload.file ACME
+.Ed
+.Pp
+Upload all files in a directory to the ACME host.
+.Bd -literal -offset indent
+    # drist -f /place/where/files/reside/ ACME
+.Ed
+.Pp
 .Sh EXIT
-.Ex -std drist
+The drist utility exits 0 on success, and >0 if an error occurs.
+.Pp
 .Sh SEE ALSO
-.Xr rsync 1 ,
-.Xr ssh 1 ,
-.Xr ssh_config 5
-.Sh Authors
-.An -nosplit
-The
-.Nm
-program was written by
-.An Solène Rapenne Aq Mt solene@perso.pw
+.Sx scp(1)
+.Sx ssh(1)
+.Sx ssh_config(5)
+.Pp
+.Sh HISTORY
+Originally created by Solène Rapenne <solene@perso.pw>
+.Pp
+(The original drist is located: 
+https://dataswamp.org/~solene/page-drist-official-website.html)
+.Pp
+Updated by John Kaul.
