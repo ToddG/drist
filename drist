@@ -1,135 +1,225 @@
 #!/bin/sh
+#vim:shiftwidth=4;
 
-SUDO=0
-SUDO_BIN=sudo
-EXEC=""
-SSHONCE=0
-TRUNCATE=0
-TEMPDIR=""
+##
+# drist --
+# A tool to configure and synchronize configurations to, and/or
+# run scrips on remote host(s) via scp(1) and ssh(1).
+#
+#
+# SYNOPSIS
+# drist [-p] [-d] [-s [-e sudo]] [-i script] [-f files-directory] [-F file-to-copy] destination
 
+# ---[ GLOBALS ]--------------------------------------------------
+PRIVILEGES=0                  # Run with escillated privileges
+PRIVILEGES_BIN=doas           # binary to run priviliged command.
+EXEC="exec sh -c "            # posix compliant shell.
+SSHONCE=0                     # set up a socket for persistent connection.
+TRUNCATE=0                    # Remove the domain name from the hostname.
+USE_FILE="script"             # defult script file to upload if no optional switches.
+USE_DIR="files"               # default directory to upload if no optional switches.
+#TEMPDIR=""                    # Temp directory to create.
+#COPY_FILE=""                  # 
+
+# ---[ HELPERS ]--------------------------------------------------
+##
+# usage --
+# @brief displays usage information.
 usage() {
-	echo "$0 [-p] [-d] [-s [-e sudo|doas]] server [...]"
-	exit 0
+    echo "$0 v2.03"
+    echo "$0 [-p] [-d] [-s [-e sudo|doas]] [-i script-to-run] [-f files-to-copy-directory] [-F single-file-to-copy] server [...]"
+    exit 0
 }
 
-# $1 = directory name
-# $2 = remote server
-# $3 = tempdir
+##
+# copy_files --
+# @brief Copy files from a local directory to a remote server.
+#
+# Parameters:
+#   $1 - source directory (e.g. /path/files-server.local)
+#   $2 - remote server name (e.g. server)
+#   $3 - remote tempdir target (e.g. ~/.drist_files_XXXXXXXXXXXXXXX)
 copy_files() {
-	# -l = keep symlink / -D = special device
-	if [ -d "${1}" ]
-	then
-		LIST=$(mktemp /tmp/drist-rsync.XXXXXXXXXX)
-		if [ -f "$LIST" ]
-		then
-			printf 'Copying files from "%s" to temporary directory %s:\n' "$1" "$3"
-			find "${1}"/ -type f -or -type l | cut -d '/' -f 2- | tee "${LIST}" | sed 's/^/	\//'
-			rsync -t -e "ssh $SSH_PARAMS" -lD --files-from="${LIST}" "${1}/" "${2}":"/${3}"
-			rm "$LIST"
-		fi
-	fi
+    src_dir=$1
+    remote_server=$2
+    remote_tmp=$3
+
+    if [ -d "${src_dir}" ]; then
+        # create list file
+        LIST=$(mktemp /tmp/drist-sync.XXXXXXXXXX)
+        # Get the current working directory.
+        CWD=$(pwd)
+        if [ -f "$LIST" ]; then
+            # -l = keep symlink / -D = special device
+            find "${src_dir}" -type f -or -type l | sed "s#^${src_dir}/##" > "${LIST}"
+            cd $(dirname -- ${src_dir})          # `dirname path/directory` will return 'path'.
+
+            # basename of source dir (e.g. files-server.local from /path/files-server.local)
+            SRC_BASE=$(basename -- "${src_dir}")
+
+            scp $SSH_PARAMS -r -q "${SRC_BASE}/" "${remote_server}":"${remote_tmp}"
+            ssh $SSH_PARAMS "${remote_server}" 'owd=$(pwd); cd '"${remote_tmp}"'/'"$SRC_BASE"' ; tar cf - . | ( tar xf - -C "$owd" )'
+            cd ${CWD}
+            rm "$LIST"
+        fi
+    fi
 }
 
-# $1 = script filename
-# $2 = remote server
-# $3 = tempdir
+##
+# copy_single_file --
+# @brief Copy a single file from a local directory to a remote server.
+#
+# Parameters:
+#   $1 - source file (e.g. /path/upload.file)
+#   $2 - remote server name (e.g. server)
+#   $3 - remote tempdir target (e.g. ~/.drist_files_XXXXXXXXXXXXXXX)
+copy_single_file() {
+    src_file=$1
+    remote_server=$2
+    remote_tmp=$3
+
+    if [ -f "${1}" ]; then
+        # create list file
+        LIST=$(mktemp /tmp/drist-sync.XXXXXXXXXX)
+        # Get the current working directory.
+        CWD=$(pwd)                      # Get the current working directory.
+        if [ -f "$LIST" ]; then
+            # -l = keep symlink / -D = special device
+            find "${src_file}" -type f -or -type l | sed "s#^${src_file}/##" > "${LIST}"
+
+            cd $(dirname ${1})          # `dirname path/directory` will return 'path'.
+            FILE_NAME=$(basename ${1})
+            scp $SSH_PARAMS -q "./${FILE_NAME}" "${2}":"${3}"
+            ssh $SSH_PARAMS "${2}" "cd $3/ ; tar cf - . | ( tar xf - -C ../ )"
+            cd ${CWD}                   # Change back to current working directory.
+            rm "$LIST"
+        fi
+    fi
+}
+
+##
+# remote_script --
+# @brief Executes script on remote host.
+#
+# Parameters:
+#   $1 - script file (e.g. /path/script)
+#   $2 - remote server name (e.g. server)
+#   $3 - remote tempdir target (e.g. ~/.drist_files_XXXXXXXXXXXXXXX)
 remote_script() {
-	if [ -f "${1}" ]
-	then
-		printf 'Executing file "%s":\n' "$1"
-		ssh $SSH_PARAMS "${2}" "cd ${3} && DRIST=${3}/script &&
-		    cat - > \$DRIST &&
-		    chmod u+x \$DRIST &&
-		    ${EXEC} \$DRIST" < "$1"
-	fi
+    src_dir=$1
+    remote_server=$2
+    remote_tmp=$3
+
+    if [ -f "${1}" ]; then
+        FILE=$(basename ${USE_FILE})
+        ssh $SSH_PARAMS "${2}" "cd ${3} && \
+            cat - > ${3}/${FILE} && \
+            chmod u+x ${3}/${FILE} && \
+            ${EXEC} ${3}/${FILE}" < "$1"
+    fi
 }
 
-# $1 = remote server
+##
+# create_temp --
+# @brief Creates temporary directory on remote host.
+#
+# Parameters:
+#   $1 - remote server name (e.g. server)
 create_temp() {
-    TEMPDIR=$(ssh $SSH_PARAMS "$1" "mktemp -d ~/.drist_files_XXXXXXXXXXXXXXX")
+    remote_server=$1
+
+    TEMPDIR=$(ssh $SSH_PARAMS "${remote_server}" "mktemp -d ~/.drist_files_XXXXXXXXXXXXXXX")
     if [ "$TEMPDIR" = "" ]; then
         echo "mktemp error, aborting"
         exit 1
     fi
 }
 
-# $1 = remote server
-# $2 = temporary directory
+##
+# delete_temp --
+# @brief Deletes temporary directory on remote host.
+#
+# Parameters:
+#   $1 - remote server name (e.g. server)
+#   $2 - remote tempdir target (e.g. ~/.drist_files_XXXXXXXXXXXXXXX)
 delete_temp() {
+    remote_server=$1
+    remote_tmp=$2
+
+    # The following is a debug print.
     if echo "${2}" | grep drist_files_ >/dev/null ; then
         ssh $SSH_PARAMS "$1" "rm -fr ${2}"
     else
         echo "Problem, TEMPDIR was reset during execution, current value is = $2"
-	exit 2
+        exit 2
     fi
 }
 
-
-# RUNTIME BEGINS HERE
-while getopts pndse: arg; do
-	case ${arg} in
-		d) TRUNCATE=1 ;;
-		s) SUDO=1 ;;
-		e) SUDO_BIN="${OPTARG}" ;;
-		p) SSHONCE=1 ;;
-		*) usage ;;
-	esac
+# ---[ RUNTIME ]--------------------------------------------------
+while getopts hpndse:i:f:F: arg; do
+    case ${arg} in
+        d) TRUNCATE=1 ;;
+        s) PRIVILEGES=1 ;;
+        e) PRIVILEGES_BIN="${OPTARG}"; PRIVILEGES=1 ;;
+        p) SSHONCE=1 ;;
+        i) USE_FILE=${OPTARG} ;;
+        f) USE_DIR=${OPTARG} ;;
+        F) COPY_FILE=${OPTARG} ;;
+        h) usage ;;
+        *) usage ;;
+    esac
 done
 shift $((OPTIND - 1))
 
 # allow to use a privilege escalation program
-if [ "$SUDO" -eq 1 ]
-then
-	EXEC="$SUDO_BIN"
+if [ "$PRIVILEGES" -eq 1 ]; then
+    EXEC="$PRIVILEGES_BIN"
 fi
 
 # use ControlMaster to make connections persistent
-if [ "$SSHONCE" -eq 1 ]
-then
-	SSH_PARAMS=-o"ControlMaster=auto"" "-o"ControlPath=/tmp/drist_ssh_%h_%p_%r.sock"" "-o"ControlPersist=1m"
+if [ "$SSHONCE" -eq 1 ]; then
+    SSH_PARAMS=-o"ControlMaster=auto"" "-o"ControlPath=/tmp/drist_ssh_%h_%p_%r.sock"" "-o"ControlPersist=1m"
 fi
 
 # start looping over server list
-if [ -f "$1" ]
-then
-	SERVER_LIST="$(tr '\n' ' ' < $1)"
+if [ -f "$1" ]; then
+    SERVER_LIST="$(tr '\n' ' ' < $1)"
 else
-	SERVER_LIST="$@"
+    SERVER_LIST="$@"
 fi
 
-if [ "${SERVER_LIST}" = "" ]
-then
-	echo "No server specified"
-	exit 1
+if [ "${SERVER_LIST}" = "" ]; then
+    echo "No server specified"
+    exit 1
 fi
 
 for remote_server in ${SERVER_LIST}
 do
-	echo "Running on ${remote_server}"
 
-	# check if host exists
-	HOSTNAME=$(ssh $SSH_PARAMS "${remote_server}" "uname -n")
-	if [ "$?" -ne 0 ]; then
-		echo "Error while ssh ${remote_server}"
-		exit 2
-	fi
+  # check if host exists
+  HOSTNAME=$(ssh $SSH_PARAMS "${remote_server}" "uname -n")
+  if [ "$?" -ne 0 ]; then
+      echo "Error while ssh ${remote_server}"
+      exit 2
+  fi
 
-	if [ "$TRUNCATE" -eq 1 ]; then
-		HOSTNAME="${HOSTNAME%%.*}"
-	fi
+  if [ "$TRUNCATE" -eq 1 ]; then
+      HOSTNAME="${HOSTNAME%%.*}"
+  fi
 
-	create_temp "${remote_server}"
-	copy_files "files" "${remote_server}" "$TEMPDIR"
-	copy_files "files-${HOSTNAME}" "${remote_server}" "$TEMPDIR"
-	remote_script "script" "${remote_server}" "$TEMPDIR"
-	remote_script "script-${HOSTNAME}" "${remote_server}" "$TEMPDIR"
-	delete_temp "${remote_server}" "$TEMPDIR"
+  create_temp "${remote_server}"
+  copy_files "${USE_DIR}" "${remote_server}" "$TEMPDIR"
+  copy_files "${USE_DIR}-${HOSTNAME}" "${remote_server}" "$TEMPDIR"
+  copy_single_file "${COPY_FILE}" "${remote_server}" "$TEMPDIR"
+  copy_single_file "${COPY_FILE}-${HOSTNAME}" "${remote_server}" "$TEMPDIR"
+  remote_script "${USE_FILE}" "${remote_server}" "$TEMPDIR"
+  remote_script "${USE_FILE}-${HOSTNAME}" "${remote_server}" "$TEMPDIR"
+  delete_temp "${remote_server}" "$TEMPDIR"
 
-	# close socket if persistance is actived
-	if [ "$SSHONCE" -eq 1 ]
-	then
-		ssh $SSH_PARAMS -O exit -N "$1"
-	fi
+  # close socket if persistance is actived
+  if [ "$SSHONCE" -eq 1 ]; then
+      ssh $SSH_PARAMS -O exit -N "$1"
+  fi
 
-	unset TEMPDIR HOSTNAME
+  unset TEMPDIR HOSTNAME
 done
