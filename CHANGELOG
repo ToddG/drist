@@ -1,3 +1,16 @@
+v2.04 - 2025-12-16
+==================
+
+- Replaced `getopt()` argument parsing with custom version to better
+  handle a "-e [doas|sudo] situation instead of having to specify "-s
+  and -e doas|sudo".
+- Removed -s switch.
+- Moved -i switch to -S switch to better conform to standard switch
+  nomenclature. -i.e. -f is used to specify a directory whereas -F
+  specifies a single file; -S is now used to specify a script file to
+  match -F.
+
+
 v2.03 - 2025-07-29
 ==================
 
