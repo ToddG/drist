@@ -6,9 +6,9 @@
 # A tool to configure and synchronize configurations to, and/or
 # run scrips on remote host(s) via scp(1) and ssh(1).
 #
-#
 # SYNOPSIS
-# drist [-p] [-d] [-s [-e sudo]] [-i script] [-f files-directory] [-F file-to-copy] destination
+# drist [-p] [-d] [-e [sudo|doas]] [-S script] [-f files-directory] [-F file-to-copy] destination [...]
+#
 
 # ---[ GLOBALS ]--------------------------------------------------
 PRIVILEGES=0                  # Run with escillated privileges
@@ -18,16 +18,14 @@ SSHONCE=0                     # set up a socket for persistent connection.
 TRUNCATE=0                    # Remove the domain name from the hostname.
 USE_FILE="script"             # defult script file to upload if no optional switches.
 USE_DIR="files"               # default directory to upload if no optional switches.
-#TEMPDIR=""                    # Temp directory to create.
-#COPY_FILE=""                  # 
 
 # ---[ HELPERS ]--------------------------------------------------
 ##
 # usage --
 # @brief displays usage information.
 usage() {
-    echo "$0 v2.03"
-    echo "$0 [-p] [-d] [-s [-e sudo|doas]] [-i script-to-run] [-f files-to-copy-directory] [-F single-file-to-copy] server [...]"
+    echo "$0 v2.04"
+    echo "$0 [-p] [-d] [-e [sudo|doas]] [-S script-to-run] [-f files-to-copy-directory] [-F single-file-to-copy] destination [...]"
     exit 0
 }
 
@@ -155,22 +153,78 @@ delete_temp() {
     fi
 }
 
-# ---[ RUNTIME ]--------------------------------------------------
-while getopts hpndse:i:f:F: arg; do
-    case ${arg} in
-        d) TRUNCATE=1 ;;
-        s) PRIVILEGES=1 ;;
-        e) PRIVILEGES_BIN="${OPTARG}"; PRIVILEGES=1 ;;
-        p) SSHONCE=1 ;;
-        i) USE_FILE=${OPTARG} ;;
-        f) USE_DIR=${OPTARG} ;;
-        F) COPY_FILE=${OPTARG} ;;
-        h) usage ;;
-        *) usage ;;
-    esac
-done
-shift $((OPTIND - 1))
 
+# ---[ ARGUMENT PARSER ]------------------------------------------
+# (custom getopt() like argument parser)
+
+# check to see if we have enough arguments.
+if [ $# -lt 1 ]; then echo "Not enough arguments."; fi
+
+# flag to set when done processing arguments.
+done_options=
+
+##
+# @brief check to see if there are more arguments to parse.
+#
+# @return 1 if done 0 if more args.
+more_options() {
+    test $done_options && return 1
+    [ $# -eq 0 ] && return 1
+    case "$1" in
+        --) return 1 ;;   # stop options
+        -*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# parse arguments.
+while more_options "$1"
+do
+    case "$1" in
+        --)
+            done_options=1
+            shift
+            break
+            ;;
+        -h*)                                            # Help
+            usage
+            ;;
+        -d)                                             # truncate hostname
+            TRUNCATE=1
+            ;;
+        -p)                                             # persistant ssh
+            SSHONCE=1
+            ;;
+        -S)                                             # script file to run
+            [ $# -gt 1 ] || usage "-S requires a script name"
+            shift
+            USE_FILE="$1"
+            ;;
+        -f)                                             # directory of files to upload
+            [ $# -gt 1 ] || usage "-f requires a directory location"
+            shift
+            USE_DIR="$1"
+            ;;
+        -F)                                             # file to upload
+            [ $# -gt 1 ] || usage "-F requires a file name"
+            shift
+            COPY_FILE="$1"
+            ;;
+        -e*)                                            # elevate premissions.
+            if [ $# -gt 1 ] && case "$2" in -*) false;; *) true;; esac; then
+                shift
+                PRIVILEGES_BIN="${1#-e}"
+            fi
+            PRIVILEGES=1
+            ;;
+        -*)
+            usage "unknown option $1"
+            ;;
+    esac
+    shift
+done
+
+# ---[ RUNTIME ]--------------------------------------------------
 # allow to use a privilege escalation program
 if [ "$PRIVILEGES" -eq 1 ]; then
     EXEC="$PRIVILEGES_BIN"
