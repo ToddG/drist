@@ -47,7 +47,7 @@ line.
 .Pp
 .Sh DESCRIPTION
 drist is a tool to configure remote servers using ssh(1) and
-scp(1).
+scp(1) by uploading files and executing scripts.
 .Pp
 When run without 'f', 'F', or 'S' optional switches, drist will
 look for a directory called "files" and/or a script called
@@ -79,17 +79,17 @@ direcotry to the $(HOME) directory.
 The following examples demonstrate usage with the optional file and
 directory specifier flags for clarity.
 .Pp
-Upload and execute a script ("setup.sh") on the ACME host.
+Execute a script ("setup.sh") on the ACME host.
 .Bd -literal -offset indent
    # drist -S /place/where/scripts/reside/setup.sh ACME
 .Ed
 .Pp
-Upload and execute a script ("setup.sh") on the ACME host using elevated permissions with `doas`.
+Execute a script ("setup.sh") on the ACME host using elevated permissions with `doas`.
 .Bd -literal -offset indent
    # drist -e -S /place/where/scripts/reside/setup.sh ACME
 .Ed
 .Pp
-Upload and execute a script ("setup.sh") on the ACME host using elevated permissions with `sudo`.
+Execute a script ("setup.sh") on the ACME host using elevated permissions with `sudo`.
 .Bd -literal -offset indent
    # drist -e sudo -S /place/where/scripts/reside/setup.sh ACME
 .Ed
@@ -119,6 +119,6 @@ Originally created by Solène Rapenne <solene@perso.pw>
 https://dataswamp.org/~solene/page-drist-official-website.html)
 .Pp
 Updated by John Kaul.
--official-website.html)
+l-website.html)
 .Pp
 Updated by John Kaul.
