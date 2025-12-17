@@ -8,7 +8,7 @@
 .Nd dumb remote installer shell tool, a remote deployment tool.
 .Pp
 .Sh SYNOPSIS
-drist [-p] [-d] [-s [-e sudo|doas]] [-i script] [-f files-directory] [-F file-to-copy] destination [...]
+drist [-p] [-d] [-e [sudo|doas]] [-S script] [-f files-directory] [-F file-to-copy] destination [...]
 .Pp
 .Sh OPTIONS
 .Bl -tag -width Ds
@@ -20,24 +20,21 @@ different steps.  This uses ControlMaster feature from ssh(1).
 Truncate reported hostname.  Tells drist to truncate the reported
 remote hostname to the left-most component.
 .Pp
-.It Fl s
-Use a program to execute a command as root on the remote server.
-Default is `doas`.
+.It Fl e 
+[sudo|doas] Binary to use for executing the commands as root
+(sudo|doas). Default: doas
 .Pp
-.It Fl e
-Binary to use for executing the commands as root.  This flag is
-only useful when used with the -s flag.
-.Pp
-.It Fl i
-Use a specified script instead of a file called `script` found in
-local directory.
+.It Fl S
+<script> Use a specified script instead of a file called `script`
+found in local directory.
 .Pp
 .It Fl f
-Use a specified directory to upload instead of a local directory
-of `files` directory.
+<directory> Use a specified directory to upload instead of a local
+directory of `files` directory.
 .Pp
 .It Fl F
-A single file to upload instead of one found in a `files` directory.
+<file> A single file to upload instead of one found in a `files`
+directory.
 .Pp
 .It Fl destination
 Specify the remote servers you want drist to work on. The
@@ -52,7 +49,7 @@ line.
 drist is a tool to configure remote servers using ssh(1) and
 scp(1).
 .Pp
-When run without 'f', 'F', or 'i' optional switches, drist will
+When run without 'f', 'F', or 'S' optional switches, drist will
 look for a directory called "files" and/or a script called
 "script" in the current working directory.
 .Pp
@@ -61,7 +58,8 @@ either: 'files' or 'files-HOSTNAME' its contents are copied to the
 suppled 'destination'.
 .Pp
 - If the current working directory contains a file called either: 'scrpt' 
-or 'script-HOSTNAME' it is copied to the supplied 'destination'.
+or 'script-HOSTNAME' it is executed on 'destination' via a POSIX
+shell.
 .Pp
 .Em NOTE
 The 'HOSTNAME' string in: 'files-HOSTNAME' and 'sript-HOSTNAME', 
@@ -72,9 +70,10 @@ contents will be uploaded and/or executed on the remote host (e.g.
 a directory called: "files-server.local" would only copy files to
 a host who's hostname is: "server.local").
 .Pp
-drist initally uploads files to the remote host into a temporary
-directory (e.g. ~/.drist_files_XXXXXXXX) before moving and/or
-executing them.
+.Em NOTE
+drist uploads files to the remote host into a temporary directory
+(e.g. ~/.drist_files_XXXXXXXX) before moving them from temporary
+direcotry to the $(HOME) directory.
 .Pp
 .Sh EXAMPLES
 The following examples demonstrate usage with the optional file and
@@ -82,17 +81,17 @@ directory specifier flags for clarity.
 .Pp
 Upload and execute a script ("setup.sh") on the ACME host.
 .Bd -literal -offset indent
-   # drist -i /place/where/scripts/reside/setup.sh ACME
+   # drist -S /place/where/scripts/reside/setup.sh ACME
 .Ed
 .Pp
 Upload and execute a script ("setup.sh") on the ACME host using elevated permissions with `doas`.
 .Bd -literal -offset indent
-   # drist -s -i /place/where/scripts/reside/setup.sh ACME
+   # drist -e -S /place/where/scripts/reside/setup.sh ACME
 .Ed
 .Pp
 Upload and execute a script ("setup.sh") on the ACME host using elevated permissions with `sudo`.
 .Bd -literal -offset indent
-   # drist -s -e sudo -i /place/where/scripts/reside/setup.sh ACME
+   # drist -e sudo -S /place/where/scripts/reside/setup.sh ACME
 .Ed
 .Pp
 Upload a file ("upload.file") to the ACME host.
@@ -118,5 +117,8 @@ Originally created by Solène Rapenne <solene@perso.pw>
 .Pp
 (The original drist is located: 
 https://dataswamp.org/~solene/page-drist-official-website.html)
+.Pp
+Updated by John Kaul.
+-official-website.html)
 .Pp
 Updated by John Kaul.
