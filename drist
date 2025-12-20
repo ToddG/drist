@@ -1,5 +1,5 @@
 #!/bin/sh
-#vim:shiftwidth=4;
+#vim:ts=4:shiftwidth=4:
 
 ##
 # drist --
@@ -8,23 +8,51 @@
 #
 # SYNOPSIS
 # drist [-p] [-d] [-e [sudo|doas]] [-S script] [-f files-directory] [-F file-to-copy] destination [...]
-#
+# 
+# -----------------------------------------------------------------------------
+# Copyright (c) 2018, Rapenne Solène
+# Copyright (c) 2025, John Kaul
+# All rights reserved.
+# 
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+# 
+# * Redistributions of source code must retain the above copyright notice, this
+#   list of conditions and the following disclaimer.
+# 
+# * Redistributions in binary form must reproduce the above copyright notice,
+#   this list of conditions and the following disclaimer in the documentation
+#   and/or other materials provided with the distribution.
+# 
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+# -----------------------------------------------------------------------------
 
 # ---[ GLOBALS ]--------------------------------------------------
-PRIVILEGES=0                  # Run with escillated privileges
-PRIVILEGES_BIN=doas           # binary to run priviliged command.
-EXEC="exec sh -c "            # posix compliant shell.
+PRIVILEGES=0                  # Run with escalated privileges
+PRIVILEGES_BIN=doas           # binary to run privileged command.
+EXEC='exec sh -c'			  # posix compliant shell.
 SSHONCE=0                     # set up a socket for persistent connection.
 TRUNCATE=0                    # Remove the domain name from the hostname.
-USE_FILE="script"             # defult script file to upload if no optional switches.
+USE_FILE="script"             # default script file to upload if no optional switches.
 USE_DIR="files"               # default directory to upload if no optional switches.
+SSH_PARAMS=""				  # default ssh parameters.
+COPY_FILE=""			      # default single file to copy.
 
 # ---[ HELPERS ]--------------------------------------------------
 ##
 # usage --
 # @brief displays usage information.
 usage() {
-    echo "$0 v2.04"
+    echo "$0 v2.05"
     echo "$0 [-p] [-d] [-e [sudo|doas]] [-S script-to-run] [-f files-to-copy-directory] [-F single-file-to-copy] destination [...]"
     exit 0
 }
@@ -50,14 +78,15 @@ copy_files() {
         if [ -f "$LIST" ]; then
             # -l = keep symlink / -D = special device
             find "${src_dir}" -type f -or -type l | sed "s#^${src_dir}/##" > "${LIST}"
-            cd $(dirname -- ${src_dir})          # `dirname path/directory` will return 'path'.
-
             # basename of source dir (e.g. files-server.local from /path/files-server.local)
             SRC_BASE=$(basename -- "${src_dir}")
 
-            scp $SSH_PARAMS -r -q "${SRC_BASE}/" "${remote_server}":"${remote_tmp}"
-            ssh $SSH_PARAMS "${remote_server}" 'owd=$(pwd); cd '"${remote_tmp}"'/'"$SRC_BASE"' ; tar cf - . | ( tar xf - -C "$owd" )'
-            cd ${CWD}
+			# Copy files to remote host.
+			tar -cf - -C . . | ssh $SSH_PARAMS "${remote_server}" 'tar -xf - -C '"${remote_tmp}"
+
+			# Move files into place.
+			ssh $SSH_PARAMS "${remote_server}" "tar -cf - -C "${remote_tmp}"/"$SRC_BASE" . | tar -xf - -C \"\$HOME\""
+
             rm "$LIST"
         fi
     fi
@@ -76,7 +105,7 @@ copy_single_file() {
     remote_server=$2
     remote_tmp=$3
 
-    if [ -f "${1}" ]; then
+    if [ -f "${src_file}" ]; then
         # create list file
         LIST=$(mktemp /tmp/drist-sync.XXXXXXXXXX)
         # Get the current working directory.
@@ -85,10 +114,14 @@ copy_single_file() {
             # -l = keep symlink / -D = special device
             find "${src_file}" -type f -or -type l | sed "s#^${src_file}/##" > "${LIST}"
 
-            cd $(dirname ${1})          # `dirname path/directory` will return 'path'.
-            FILE_NAME=$(basename ${1})
-            scp $SSH_PARAMS -q "./${FILE_NAME}" "${2}":"${3}"
-            ssh $SSH_PARAMS "${2}" "cd $3/ ; tar cf - . | ( tar xf - -C ../ )"
+            cd "$(dirname -- "$src_file")"
+            FILE_NAME=$(basename -- "$src_file")
+
+			# copy file to remote host.
+			tar -cf - -C . "./${FILE_NAME}" | ssh $SSH_PARAMS "${remote_server}" 'tar -xf - -C '"${remote_tmp}"
+
+			# move file into place.
+			ssh $SSH_PARAMS "${remote_server}" "tar -cf - -C \"$remote_tmp\" . | tar -xf - -C \"\$HOME\""
             cd ${CWD}                   # Change back to current working directory.
             rm "$LIST"
         fi
@@ -108,12 +141,12 @@ remote_script() {
     remote_server=$2
     remote_tmp=$3
 
-    if [ -f "${1}" ]; then
+    if [ -f "${src_dir}" ]; then
         FILE=$(basename ${USE_FILE})
-        ssh $SSH_PARAMS "${2}" "cd ${3} && \
-            cat - > ${3}/${FILE} && \
-            chmod u+x ${3}/${FILE} && \
-            ${EXEC} ${3}/${FILE}" < "$1"
+        ssh $SSH_PARAMS "${remote_server}" "cd ${remote_tmp} && \
+            cat - > ${remote_tmp}/${FILE} && \
+            chmod u+x ${remote_tmp}/${FILE} && \
+            ${EXEC} ${remote_tmp}/${FILE}" < "$src_dir"
     fi
 }
 
@@ -146,9 +179,9 @@ delete_temp() {
 
     # The following is a debug print.
     if echo "${2}" | grep drist_files_ >/dev/null ; then
-        ssh $SSH_PARAMS "$1" "rm -fr ${2}"
+        ssh $SSH_PARAMS "$remote_server" "rm -fr ${remote_tmp}"
     else
-        echo "Problem, TEMPDIR was reset during execution, current value is = $2"
+        echo "Problem, TEMPDIR was reset during execution, current value is = $remote_tmp"
         exit 2
     fi
 }
@@ -192,7 +225,7 @@ do
         -d)                                             # truncate hostname
             TRUNCATE=1
             ;;
-        -p)                                             # persistant ssh
+        -p)                                             # persistent ssh
             SSHONCE=1
             ;;
         -S)                                             # script file to run
@@ -210,7 +243,7 @@ do
             shift
             COPY_FILE="$1"
             ;;
-        -e*)                                            # elevate premissions.
+        -e*)                                            # elevate permissions.
             if [ $# -gt 1 ] && case "$2" in -*) false;; *) true;; esac; then
                 shift
                 PRIVILEGES_BIN="${1#-e}"
@@ -232,7 +265,7 @@ fi
 
 # use ControlMaster to make connections persistent
 if [ "$SSHONCE" -eq 1 ]; then
-    SSH_PARAMS=-o"ControlMaster=auto"" "-o"ControlPath=/tmp/drist_ssh_%h_%p_%r.sock"" "-o"ControlPersist=1m"
+   SSH_PARAMS='-o ControlMaster=auto -o ControlPath=/tmp/drist_ssh_%h_%p_%r.sock -o ControlPersist=1m'
 fi
 
 # start looping over server list
@@ -251,7 +284,7 @@ for remote_server in ${SERVER_LIST}
 do
 
   # check if host exists
-  HOSTNAME=$(ssh $SSH_PARAMS "${remote_server}" "uname -n")
+  HOSTNAME=$(ssh $SSH_PARAMS "$remote_server" "uname -n")
   if [ "$?" -ne 0 ]; then
       echo "Error while ssh ${remote_server}"
       exit 2
@@ -270,7 +303,7 @@ do
   remote_script "${USE_FILE}-${HOSTNAME}" "${remote_server}" "$TEMPDIR"
   delete_temp "${remote_server}" "$TEMPDIR"
 
-  # close socket if persistance is actived
+  # close socket if persistence is active
   if [ "$SSHONCE" -eq 1 ]; then
       ssh $SSH_PARAMS -O exit -N "$1"
   fi
