@@ -1,0 +1,5 @@
+#!/bin/sh
+# vim: ts=4: shiftwidth=4:
+
+[ -f "$HOME/hello_world.c" ] && cc -o "$HOME/hello_world" "$HOME/hello_world.c" && "$HOME/hello_world"
+rm "$HOME/hello_world"

@@ -1,0 +1,11 @@
+hello world --
+
+This example consists of a file and a script which can be copied up to remote host via drist.
+
+Option 1 (while inside the `hello_world` directory):
+
+        # drsit ACME
+
+Option 2 (from outside the `hello world` directory):
+
+        # drist -F ./path/examples/hello_world/files/test.drist -S ./path/examples/hello_world/script ACME

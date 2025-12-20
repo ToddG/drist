@@ -1,0 +1,11 @@
+hello world (c program) --
+
+This example consists of a C file and a script which can be copied up to remote host via drist. This example compiles and runs the C program.
+
+Option 1 (while inside the `hello_world_c` directory):
+
+        # drsit ACME
+
+Option 2 (from outside the `hello world_c` directory):
+
+        # drist -F ./path/examples/hello_world_c/files/test.drist -S ./path/examples/hello_world_c/script ACME
