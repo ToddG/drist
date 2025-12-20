@@ -1,3 +1,21 @@
+v2.05 - 2025-12-19
+==================
+
+- Fixed a few variable quote errors.
+- Fixed a few default variable values.
+- Remote file copy (aka tar command) cleanup.
+- Fixed variable names in `copy_single_file()`.
+- Fixed variable names in `remote_script()`.
+- Fixed variable names in `delete_temp()`.
+- Updated man page for better explanation about how "files" and
+  "script" are treated on remote host.
+- Switched from the use of `scp` to a tar pipeline via ssh to copy
+  files to remote host.
+- Added license to drist script.
+- Fixed spelling errors.
+- Removed older examples.
+- Added new examples with 'readmes'.
+
 v2.04 - 2025-12-16
 ==================
 
@@ -9,7 +27,6 @@ v2.04 - 2025-12-16
   nomenclature. -i.e. -f is used to specify a directory whereas -F
   specifies a single file; -S is now used to specify a script file to
   match -F.
-
 
 v2.03 - 2025-07-29
 ==================
