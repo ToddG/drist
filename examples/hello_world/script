@@ -9,8 +9,6 @@
 # NOTE: This script will echo a prompt and read a file ("test.drist")
 #       contents and remove the file afterwards.
 
-#descr="Hello world type script to be run on remote host via the drist tool."
-
 main() {
     echo "Hello World! (from \"$(hostname)\" and \"script\")"
     echo "This is a test of the drist tool run as user \"$(whoami)\"."
@@ -23,21 +21,12 @@ read_testfile() {
 # Call `main()`
 main "$@"
 
-## # Read `test.drist` file if copied up and delete (leave the endusers machine as we found it).
-## #if [ find "$HOME" -type f -name "test.drist" ]; then
-## if [ -f "$HOME/test.drist" ]; then
-##     echo "I have found the file: \"$HOME/test.drist\"."
-##     echo "Below are the contents:"
-##     read_testfile
-##     echo ""
-##     echo "Deleting \"$HOME/test.drist\" file."
-##     rm "$HOME/test.drist"
-## fi
-
- [ -f "$HOME/test.drist" ] && {
-     echo ""
-     echo "Contents of file"
-     cat "$HOME/test.drist"
-     echo ""
-#     rm "$HOME/test.drist"
- }
+# Read `test.drist` file if copied up and delete (leave the endusers machine as we found it).
+if [ -f "$HOME/test.drist" ]; then
+    echo "I have found the file: \"$HOME/test.drist\"."
+    echo "Below are the contents:"
+    read_testfile
+    echo ""
+    echo "Deleting \"$HOME/test.drist\" file."
+    rm "$HOME/test.drist"
+fi
