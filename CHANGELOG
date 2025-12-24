@@ -1,3 +1,10 @@
+v2.06 - 2025-12-23
+==================
+
+- Improved documentation.
+- Removed changing directories in the `single_file_copy()`.
+- Misc code formatting (tabs/spaces/etc).
+
 v2.05 - 2025-12-19
 ==================
 
