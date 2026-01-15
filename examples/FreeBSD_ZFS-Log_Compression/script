@@ -1,0 +1,255 @@
+#!/bin/sh
+# vim: ft=sh
+
+set -eu
+
+# ---[ GLOBALS ]--------------------------------------------------
+CRONTAB_PATH="/etc/crontab"
+NEWSYSLOG_PATH="/etc/newsyslog.conf"
+BACKUP_DIR="/var/backups/drist"
+TMPDIR="/tmp"
+
+# ---[ HELPERS ]--------------------------------------------------
+
+##
+# restore --
+# Restores backup versions
+#
+# Parameters:
+#   $1 - crontab backup file.
+#   $2 - newsyslog.conf backup file.
+restore() {
+    bkp_crontab="$1"
+    bkp_newsyslog="$2"
+    [ -n "${bkp_newsyslog:-}" ] && [ -e "${bkp_newsyslog}" ] && \
+       safe_install "${bkp_newsyslog}" "${NEWSYSLOG_PATH}"
+
+    [ -n "${bkp_crontab:-}" ] && [ -e "${bkp_crontab}" ] && \
+        safe_install "${bkp_crontab}" "${CRONTAB_PATH}"
+}
+
+##
+# make_backup_dir --
+# Makes a backup directory with root permissions.
+#
+# Returns: 0 on success, non-zero on failure
+make_backup_dir() {
+        install -d -o root -g wheel -m 0755 "$BACKUP_DIR"
+}
+
+##
+# backup --
+# Creates a backup of a specified file.
+# Parameters:
+#   $1 - path to file to back up
+#
+# Outputs:
+#   prints path of created backup
+#
+# Returns: 0 on success
+backup() {
+    src="$1"
+    ts=$(date +%Y%m%d%H%M%S)
+    dest="$BACKUP_DIR/$(basename "$src").$ts.bak"
+    cp -p -- "$src" "$dest"
+    printf '%s\n' "$dest"
+}
+
+##
+# remove_file --
+# Removes a file if it exists.
+#
+# Parameters:
+#   $1 - path to file to remove
+#
+# Returns: 0
+remove_file() {
+    file="$1"
+    [ -z "${file:-}" ] && return 0
+    [ -e "$file" ] || return 0
+    rm -f -- "$file"
+}
+
+##
+# safe_install --
+# Uses install to place a file at a target location with root permissions.
+#
+# Parameters:
+#   $1 - source temporary file
+#   $2 - target path to overwrite
+#
+# Returns: 0 on success
+safe_install() {
+    tmp="$1"
+    target="$2"
+    install -o root -g wheel -m 0644 "$tmp" "$target"
+}
+
+##
+# create_temp --
+# Creates a temp file and prints its path.
+#
+# Parameters:
+#    $1 - name of file
+#
+# Outputs:
+#   path to temp file
+create_temp() {
+    file="$1"
+    mktemp "$TMPDIR/$file.XXXXXXXXXX"
+}
+
+##
+# replace_cron_cmd --
+# Replaces an exact command string in a crontab-style file (fields 7..end).
+#
+# Parameters:
+#   $1 - original command string
+#   $2 - replacement command string
+#   $3 - file to operate on (defaults to CRONTAB_PATH)
+#   $4 - path to temp file to write to
+#
+# Returns: 0 on success
+replace_cron_cmd() {
+    orig="$1"
+    repl="$2"
+    file="${3:-$CRONTAB_PATH}"
+    tmp="$4"
+    [ -f "$file" ] || { printf 'Missing %s\n' "$file" >&2; return 1; }
+    [ -n "$tmp" ] || { printf 'Missing tmp path\n' >&2; return 1; }
+
+    awk -v orig="$orig" -v repl="$repl" '
+    {
+      line = $0
+      if (line ~ /^[[:space:]]*$/ || line ~ /^[[:space:]]*#/) { print line; next }
+      # find start index of 7th field by walking fields using match of non-space tokens
+      pos = 1
+      count = 0
+      while (match(substr(line, pos), /[^[:space:]]+/)) {
+        count++
+        # advance pos to char after this token
+        pos += RSTART + RLENGTH - 1
+        if (count == 6) break
+        # skip following spaces
+        while (substr(line, pos, 1) ~ /[[:space:]]/) pos++
+        if (pos > length(line)) break
+      }
+      if (count < 6 || pos > length(line)) {
+        print line
+      } else {
+        prefix = substr(line, 1, pos)
+        cmd = substr(line, pos+0)    # rest of line starting at 7th field
+        # trim leading spaces from cmd for exact comparison with orig
+        sub(/^[[:space:]]+/, "", cmd)
+        if (cmd == orig) {
+          # preserve existing prefix spacing exactly; ensure one separator between prefix and cmd
+          printf "%s%s\n", prefix, repl
+        } else {
+          print line
+        }
+      }
+    }' "$file" > "$tmp"
+}
+
+##
+# update_newsyslog_conf --
+# Remove the 'J' compression flag from the flags column of newsyslog.conf.
+# This function:
+#  - preserves original whitespace (including tabs)
+#  - is idempotent (removing 'J' again does nothing)
+#  - only alters the flags column (field 6), leaving other fields intact
+#
+# Parameters:
+#   $1 - path to newsyslog.conf (defaults to NEWSYSLOG_PATH)
+#   $2 - temp file path to write to (if not provided a temp is created)
+#
+# Example:
+#   update_newsyslog_conf /etc/newsyslog.conf /tmp/tmpfile
+#
+# Returns: 0 on success
+update_newsyslog_conf() {
+    file="${1:-$NEWSYSLOG_PATH}"
+    tmp="$2"
+
+    [ -f "$file" ] || { printf 'Missing %s\n' "$file" >&2; [ -n "${tmp:-}" ] && [ -f "$tmp" ] && rm -f "$tmp"; return 1; }
+    [ -n "$tmp" ] || { printf 'Missing tmp path\n' >&2; return 1; }
+
+    awk '
+    function removeJ(s,    out, i, c) {
+      out = ""
+      for (i = 1; i <= length(s); i++) {
+        c = substr(s, i, 1)
+        if (c != "J") out = out c
+      }
+      return out
+    }
+    {
+      line = $0
+      if (line ~ /^[[:space:]]*#/ || line ~ /^[[:space:]]*$/) { print line; next }
+      # find start of 6th token: walk tokens
+      pos = 1; count = 0
+      while (match(substr(line, pos), /[^[:space:]]+/)) {
+        count++
+        pos += RSTART + RLENGTH - 1
+        if (count == 5) break
+        while (substr(line, pos, 1) ~ /[[:space:]]/) pos++
+        if (pos > length(line)) break
+      }
+      if (count < 5) { print line; next }
+      # now pos is end of 5th token; skip spaces to 6th token start
+      start6 = pos
+      while (substr(line, start6, 1) ~ /[[:space:]]/) start6++
+      if (start6 > length(line)) { print line; next }
+      # find end of 6th token
+      if (match(substr(line, start6), /[^[:space:]]+/)) {
+        flags = substr(line, start6 + RSTART - 1, RLENGTH)
+        restpos = start6 + RSTART - 1 + RLENGTH
+        rest = (restpos <= length(line)) ? substr(line, restpos) : ""
+        newflags = removeJ(flags)
+        if (newflags == flags) {
+          print line
+        } else {
+          # print up to start6-1 unchanged, then newflags, then rest (preserve spacing)
+          printf "%s%s%s\n", substr(line, 1, start6-1), newflags, rest
+        }
+      } else {
+        print line
+      }
+    }' "$file" > "$tmp"
+}
+
+# ---[ RUNTIME ]--------------------------------------------------
+# Get the pool name.
+pool_name=$(zpool list -Ho name)
+
+# Set the compression to `lz4`
+zfs set compression=lz4 "${pool_name}/var/log"
+
+# Make sure backup directory exists.
+make_backup_dir
+
+# Make backups
+bkp_crontab=$(backup "$CRONTAB_PATH")
+bkp_newsyslog=$(backup "$NEWSYSLOG_PATH")
+
+# Create error trap to undo backups (runs on any command error).
+trap 'restore "${bkp_crontab:-}" "${bkp_newsyslog:-}"' ERR
+
+# Create temporary files for edits (atomic).
+tmp_crontab=$(create_temp "crontab")
+tmp_newsyslog=$(create_temp "newsyslog")
+
+# Ensure both temp files are cleaned up on exit
+trap 'remove_file "${tmp_crontab:-}"; remove_file "${tmp_newsyslog:-}"' EXIT
+
+# Make crontab edits.
+replace_cron_cmd "newsyslog" "newsyslog -t DEFAULT" "$CRONTAB_PATH" "$tmp_crontab"
+safe_install "$tmp_crontab" "$CRONTAB_PATH"
+
+# Make newsyslog.conf edits.
+update_newsyslog_conf "$NEWSYSLOG_PATH" "$tmp_newsyslog"
+safe_install "$tmp_newsyslog" "$NEWSYSLOG_PATH"
+
+# Restart services
+service newsyslog restart || true
+service syslogd restart || true
