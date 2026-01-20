@@ -1,3 +1,6 @@
+.\" Copyright (c) 2018, Rapenne Solène
+.\" Copyright (c) 2025, John Kaul
+.\" SPDX-License-Identifier: BSD-2-Clause
 .Dd Dec 23 2025
 .Dt drist 1
 .Os
@@ -14,43 +17,65 @@ drist [-p] [-d] [-e [sudo|doas]] [-S script] [-f files-directory] [-F file-to-co
 .Bl -tag -width Ds
 .It Fl p
 Use persistent ssh connection, allowing ssh only once for the
-different steps.  This uses ControlMaster feature from ssh(1).
+different steps.  This uses ControlMaster feature from 
+.Xr ssh(1)
+.
 .Pp
 .It Fl d
 Truncate reported hostname.  Tells drist to truncate the reported
 remote hostname to the left-most component.
 .Pp
-.It Fl e 
-[sudo|doas] Binary to use for executing the commands as root
-(sudo|doas). Default: doas
+.It Fl e Ar sudo|doas
+Binary to use for executing the commands as root (sudo|doas).
+Default: 
+.Xr doas(1)
 .Pp
-.It Fl S
-<script> Use a specified script instead of a file called `script`
-found in local directory.
+.It Fl S Ar script
+Use a specified script instead of a file called 
+.Li script
+found in
+local directory.
 .Pp
-.It Fl f
-<directory> Use a specified directory to upload instead of a local
-directory of `files` directory.
-.Pp
-.It Fl F
-<file> A single file to upload instead of one found in a `files`
+.It Fl f Ar directory
+Use a specified directory to upload instead of a local directory
+of 
+.Li files
 directory.
 .Pp
-.It Fl destination
-Specify the remote servers you want drist to work on. The
-destination can be a file containing a list of hosts, one per line
-or it can be addresses passed in the command line.  If you specify
-multiples servers, drist will loop over the list respecting the
-list order.  Note that only one file can be used in the command
-line.
+.It Fl F Ar file
+A single file to upload instead of one found in a 
+.Li files
+directory.
+.Pp
+.It destination
+Specify the remote servers you want drist to work on. The destination
+can be a file containing a list of hosts, one per line or it can be
+addresses passed in the command line.  If you specify multiples
+servers, drist will loop over the list respecting the list order.
+Note that only one file can be used in the command line.
+.Pp
 .El
 .Pp
 .Sh DESCRIPTION
-drist is a tool to configure remote servers using ssh(1) and
-tar(1) by uploading files and executing scripts.
+
+.Li drist
+is a tool to configure remote servers using 
+.Xr ssh(1)
+and
+
+.Xr tar(1)
+by uploading files and executing scripts.
 .Pp
-drist will upload files via a tar(1) pipeline through ssh(1) and
-execute scripts on remote hosts via ssh(1) in a POSIX compliant
+
+.Li drist
+will upload files via a 
+.Xr tar(1)
+pipeline through 
+.Xr ssh(1)
+and
+execute scripts on remote hosts via 
+.Xr ssh(1)
+in a POSIX compliant
 shell.
 .Pp
 When run without 'f', 'F', or 'S' optional switches, drist will
@@ -61,14 +86,17 @@ look for a directory called "files" and/or a script called
 either: 'files' or 'files-HOSTNAME' its contents are copied to the
 suppled 'destination'.
 .Pp
-- If the current working directory contains a file called either: 'scrpt' 
+- If the current working directory contains a file called either: 'scrpt'
 or 'script-HOSTNAME' it is copied to, and executed on,
 'destination' via a POSIX shell.
 .Pp
+
 .Em NOTE
-The 'HOSTNAME' string in: 'files-HOSTNAME' and 'sript-HOSTNAME', 
+The 'HOSTNAME' string in: 'files-HOSTNAME' and 'sript-HOSTNAME',
 files are placeholder values. drist will connect to server via
-ssh(1) and request the remote HOSTNAME by calling 'uname -n' and
+
+.Xr ssh(1)
+and request the remote HOSTNAME by calling 'uname -n' and
 if it matches the 'HOSTNAME' in the directory/file name's their
 contents will be uploaded and/or executed on the remote host (e.g.
 a directory called: "files-server.local" would only copy files to
@@ -98,37 +126,43 @@ ownership/permissions as seen on the remote side by extracting
 The following examples demonstrate usage with the optional file and
 directory specifier flags for clarity.
 .Pp
-.Sy Execute a script ("setup.sh") on the ACME host.
+Execute a script ("setup.sh") on the ACME host.
 .Bd -literal -offset indent
-   # drist -S /place/where/scripts/reside/setup.sh ACME
+    # drist -S /place/where/scripts/reside/setup.sh ACME
 .Ed
 .Pp
-.Sy Execute a script ("setup.sh") on the ACME host using elevated permissions with `doas`.
+Execute a script ("setup.sh") on the ACME host using elevated permissions with 
+.Li doas
+.
 .Bd -literal -offset indent
-   # drist -e -S /place/where/scripts/reside/setup.sh ACME
+    # drist -e -S /place/where/scripts/reside/setup.sh ACME
 .Ed
 .Pp
-.Sy Execute a script ("setup.sh") on the ACME host using elevated permissions with `sudo`.
+Execute a script ("setup.sh") on the ACME host using elevated permissions with 
+.Li sudo
+.
 .Bd -literal -offset indent
    # drist -e sudo -S /place/where/scripts/reside/setup.sh ACME
 .Ed
 .Pp
-.Sy Execute a script ("setup.sh") on the ACME host using elevated permissions with `su`.
+Execute a script ("setup.sh") on the ACME host using elevated permissions with 
+.Li su
+.
 .Bd -literal -offset indent
    # drist -e 'su - root' -S /place/where/scripts/reside/setup.sh ACME
 .Ed
 .Pp
-.Sy Upload a file ("upload.file") to the ACME host.
+Upload a file ("upload.file") to the ACME host.
 .Bd -literal -offset indent
     # drist -F /place/where/files/reside/upload.file ACME
 .Ed
 .Pp
-.Sy Upload all files in a directory to the ACME host.
+Upload all files in a directory to the ACME host.
 .Bd -literal -offset indent
     # drist -f /place/where/files/reside/ ACME
 .Ed
 .Pp
-.Sy Example script, executed on remote host ACME, demonstrating how to reference a file uploaded to remote host.
+Example script, executed on remote host ACME, demonstrating how to reference a file uploaded to remote host.
 .Pp
 Script contents:
 .Bd -literal -offset indent
@@ -146,14 +180,17 @@ Upload comand:
 The drist utility exits 0 on success, and >0 if an error occurs.
 .Pp
 .Sh SEE ALSO
-.Sx tar(1)
-.Sx ssh(1)
-.Sx ssh_config(5)
+
+.Xr tar(1)
+, 
+.Xr ssh(1)
+, 
+.Xr ssh_config(5)
 .Pp
 .Sh HISTORY
 Originally created by Solène Rapenne <solene@perso.pw>
 .Pp
-(The original drist is located: 
+(The original drist is located:
 https://dataswamp.org/~solene/page-drist-official-website.html)
 .Pp
 Updated by John Kaul.
