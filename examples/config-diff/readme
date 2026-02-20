@@ -4,7 +4,7 @@ This example preforms a diff(1) between a local config file and a remote version
 
 Option 1 (while inside the `config-diff` directory):
 
-        # drsit ACME
+        # drist ACME
 
 Option 2 (from outside the `config-diff` directory):
 

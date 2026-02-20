@@ -1,6 +1,6 @@
 # drist
 
-*_NOTE_*: This is a fork of the origional drsit. See the [HISTORY](#history) section below.
+*_NOTE_*: This is a fork of the origional drist. See the [HISTORY](#history) section below.
 
 ## BRIEF
 drist is a tool to configure and synchronize configurations to, and/or run scrips on remote host(s) via ssh(1).

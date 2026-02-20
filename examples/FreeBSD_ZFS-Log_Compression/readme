@@ -10,7 +10,7 @@ https://freebsdfoundation.org/blog/zfs-log-compression-on-freebsd/
 
 Option 1 (while inside the `FreeBSD_ZFS-Log_Compression` directory):
    Run `script` on 'ACME' host with elevated permissions (`doas`).
-        % drsit -e ACME
+        % drist -e ACME
 
 Option 2 (from outside the `FreeBSD_ZFS-Log_Compression` directory):
    Run `script` on 'ACME' host with elevated permissions (`doas`).
