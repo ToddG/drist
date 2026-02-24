@@ -1,3 +1,7 @@
+everything in this fork has been horribly broken by me.
+do not use anything here.
+i'll delete this repo soon.
+
 # drist
 
 *_NOTE_*: This is a fork of the origional drist. See the [HISTORY](#history)
