@@ -27,7 +27,7 @@ USE_DIR="files"               # default directory to upload if no optional switc
 SSH_PARAMS=""                 # default ssh parameters.
 COPY_FILE=""                  # default single file to copy.
 TEMPDIR=""                    # assigned to in the create_temp() function
-DEBUG=true                    # true or false
+DEBUG=false                   # true or false
 
 # ---[ HELPERS ]--------------------------------------------------
 ##
@@ -223,7 +223,7 @@ delete_temp() {
     # The following is a debug print.
     if echo "${remote_tmp}" | grep drist_files_ >/dev/null ; then
         ssh $SSH_PARAMS "$remote_server" "rm -fr ${remote_tmp}"
-        echo "deleted temp dir: $remote_tmp on remote server: ${remote_server}"
+        debug "deleted temp dir: $remote_tmp on remote server: ${remote_server}"
     else
         echo "Problem, temp dir was reset during execution, current value is = $remote_tmp"
         exit 11
@@ -265,6 +265,9 @@ do
             ;;
         -h*)                                            # Help
             usage
+            ;;
+        -D)                                             # enable debug logging
+            DEBUG=true
             ;;
         -d)                                             # truncate hostname
             TRUNCATE=1
