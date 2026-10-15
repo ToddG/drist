@@ -11,6 +11,7 @@
 # -----------------------------------------------------------------------------
 # Copyright (c) 2018, Rapenne Solène
 # Copyright (c) 2025, John Kaul
+# Copyright (c) 2026, Todd Greenwood
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-2-Clause
@@ -33,13 +34,14 @@ COPY_ROOT_DIR='$HOME'         # root directory to copy files to, defaults to $HO
 COPIED_FILE=""                # file copied to $COPY_ROOT_DIR/filename
 COPIED_DIR=""                 # dir copied to $COPY_ROOT_DIR/directory
 DELETE_COPIED_FILES=false     # delete the copied files/directories
+NO_COPY=false                 # do not copy the file/directory from the remote temp dir to the remote copy_root_dir
 
 # ---[ HELPERS ]--------------------------------------------------
 ##
 # usage --
 # @brief displays usage information.
 usage() {
-    echo "$0 v2.07"
+    echo "$0 v2.08"
     echo "$0 [-p] [-d] [-e [sudo|doas]] [-S script-to-run] [-f files-to-copy-directory] [-F single-file-to-copy] destination [...]"
     exit 0
 }
@@ -88,8 +90,10 @@ copy_files() {
             # Copy files to remote host.
             tar cf - -C "$(dirname -- ${src_dir})" -- "${src_base}" | ssh $SSH_PARAMS "${remote_server}" 'tar xf - -C '"${remote_tmp}"
 
-            # Move files into place.
-            ssh $SSH_PARAMS "${remote_server}" "tar cf - -C \"${remote_tmp}\" . | ${TAR_EXEC} tar xf - -C \"$COPY_ROOT_DIR\""
+            if [ "$NO_COPY" = false ]; then
+                # copy files from remote_tmp directory to the copy_root_dir
+                ssh $SSH_PARAMS "${remote_server}" "tar cf - -C \"${remote_tmp}\" . | ${TAR_EXEC} tar xf - -C \"$COPY_ROOT_DIR\""
+            fi
 
             rm "$list_file"
         fi
@@ -140,8 +144,10 @@ copy_single_file() {
             # copy file to remote host.
             tar cf - -C "$(dirname -- "$src_file")" "./${file_name}" | ssh $SSH_PARAMS "${remote_server}" 'tar xf - -C '"${remote_tmp}"
 
-            # move file into place.
-            ssh $SSH_PARAMS "${remote_server}" "tar cf - -C \"$remote_tmp\" . | ${TAR_EXEC} tar xf - -C \"\$COPY_ROOT_DIR\""
+            # copy files from remote_tmp directory to the copy_root_dir
+            if [ "$NO_COPY" = false ]; then
+                ssh $SSH_PARAMS "${remote_server}" "tar cf - -C \"$remote_tmp\" . | ${TAR_EXEC} tar xf - -C \"\$COPY_ROOT_DIR\""
+            fi
             rm "$list_file"
         fi
     fi
@@ -303,6 +309,9 @@ do
         -d)                                             # truncate hostname
             TRUNCATE=1
             ;;
+        -n)                                             # do not copy files out of the .drist temp dir
+            NO_COPY=true                                # instead, the script can use them directly in the temp dir
+            ;;
         -r)                                             # root directory to copy files to, defaults to $HOME
             [ $# -gt 1 ] || usage "-r requires a root directory to copy files to"
             shift
@@ -388,7 +397,9 @@ do
       HOSTNAME="${HOSTNAME%%.*}"
   fi
 
+  # assigns value to TEMPDIR
   create_temp "${remote_server}"
+
   copy_files "${USE_DIR}" "${remote_server}" "$TEMPDIR"
   copy_files "${USE_DIR}-${HOSTNAME}" "${remote_server}" "$TEMPDIR"
   copy_single_file "${COPY_FILE}" "${remote_server}" "$TEMPDIR"
@@ -396,7 +407,7 @@ do
   remote_script "${USE_FILE}" "${remote_server}" "$TEMPDIR"
   remote_script "${USE_FILE}-${HOSTNAME}" "${remote_server}" "$TEMPDIR"
   delete_temp "${remote_server}" "$TEMPDIR"
-  if [ "$DELETE_COPIED_FILES" = true ]; then
+  if [ "$DELETE_COPIED_FILES" = true ]  && [ "$NO_COPY" = false ]; then
     delete_copied_files "${remote_server}"
   fi
 

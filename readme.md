@@ -37,6 +37,9 @@ drist also supports execution from a different working directory via the use of 
 
 -F      (file) A single file to upload instead of one found in a `files` directory.
 
+-n      Do not copy the files out of the remote temp directory. Instead, let the script reference the files from the remote temp directory.
+        The remote temp directory is the current working directory of the script.
+
 -r      (directory) Root directory to copy files, defaults to $HOME on the remote
 
 -v      Enable logging
