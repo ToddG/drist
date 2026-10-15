@@ -8,7 +8,7 @@
 drist is a tool to configure and synchronize configurations to, and/or run scrips on remote host(s) via ssh(1).
 
 ## SYNOPSIS
-    drist [-p] [-d] [-e [sudo|doas]] [-S script] [-f files-directory] [-F file-to-copy] destination [...]
+    drist [-x] [-v] [-vv] [-p] [-d] [-e [sudo|doas]] [-r remote-root-directory] [-S script] [-f files-directory] [-F file-to-copy] destination [...]
 
 ## DESCRIPTION
 Remote host configuration preformed with files and scripts without any special configuration syntaxes/languages, daemons, or agents. drist relies on base tools like sed(1), and ssh(1) and aims at being a simple to use and a pluggable automation tool.
@@ -36,6 +36,14 @@ drist also supports execution from a different working directory via the use of 
 -f      (directory) Use a specified directory to upload instead of a local directory of `files` directory.
 
 -F      (file) A single file to upload instead of one found in a `files` directory.
+
+-r      (directory) Root directory to copy files, defaults to $HOME on the remote
+
+-v      Enable logging
+
+-vv     Enable verbose logging
+
+-x      Delete copied files froom root directory
 
 destination     Specify the remote servers you want drist to work on. The destination can be a file containing a list of hosts, one per line or it can be addresses passed in the command line. If you specify multiples servers, drist will loop over the list respecting the list order.  Note that only one file can be used in the command line.
 
