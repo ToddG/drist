@@ -42,7 +42,7 @@ NO_COPY=false                 # do not copy the file/directory from the remote t
 # @brief displays usage information.
 usage() {
     echo "$0 v2.09"
-    echo "$0 [-p] [-d] [-e [sudo|doas]] [-S script-to-run] [-f files-to-copy-directory] [-F single-file-to-copy] destination [...]"
+    echo "$0 [-v] [-vv] [-n] [-p] [-d] [-x] [-e [sudo|doas]] [-r remote-root-dir] [-S script-to-run] [-f files-to-copy-directory] [-F single-file-to-copy] destination [...]"
     exit 0
 }
 
@@ -131,7 +131,7 @@ copy_single_file() {
 
         # copy files from remote_tmp directory to the copy_root_dir
         if [ "$NO_COPY" = false ]; then
-            ssh $SSH_PARAMS "${remote_server}" "tar cf - -C \"$remote_tmp\" . | ${TAR_EXEC} tar xf - -C \"\$COPY_ROOT_DIR\""
+            ssh $SSH_PARAMS "${remote_server}" "tar cf - -C \"$remote_tmp\" . | ${TAR_EXEC} tar xf - -C \"$COPY_ROOT_DIR\""
         fi
     fi
     debug "copy_single_file, src_dir: $src_dir, remote_server: $remote_server, remote_tmp: $remote_tmp, COPY_ROOT_DIR: $COPY_ROOT_DIR, COPIED_FILE: $COPIED_FILE TAR_EXEC: $TAR_EXEC"
