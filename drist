@@ -41,7 +41,7 @@ NO_COPY=false                 # do not copy the file/directory from the remote t
 # usage --
 # @brief displays usage information.
 usage() {
-    echo "$0 v2.08"
+    echo "$0 v2.09"
     echo "$0 [-p] [-d] [-e [sudo|doas]] [-S script-to-run] [-f files-to-copy-directory] [-F single-file-to-copy] destination [...]"
     exit 0
 }
@@ -75,27 +75,18 @@ copy_files() {
             exit 2
         fi
             
-        # create list file
-        list_file=$(mktemp /tmp/drist-sync.XXXXXXXXXX)
-        if [ -f "$list_file" ]; then
-            # -l = keep symlink / -D = special device
-            find "${src_dir}" -type f -or -type l | sed "s#^${src_dir}/##" > "${list_file}"
-            
-            # basename of source dir (e.g. files-server.local from /local/path/to/upload/directory)
-            src_base=$(basename -- "${src_dir}")
+        # basename of source dir (e.g. files-server.local from /local/path/to/upload/directory)
+        src_base=$(basename -- "${src_dir}")
 
-            # global var used to delete the copied directory
-            COPIED_DIR="${src_base}"
+        # global var used to delete the copied directory
+        COPIED_DIR="${src_base}"
 
-            # Copy files to remote host.
-            tar cf - -C "$(dirname -- ${src_dir})" -- "${src_base}" | ssh $SSH_PARAMS "${remote_server}" 'tar xf - -C '"${remote_tmp}"
+        # Copy files to remote host.
+        tar cf - -C "$(dirname -- ${src_dir})" -- "${src_base}" | ssh $SSH_PARAMS "${remote_server}" 'tar xf - -C '"${remote_tmp}"
 
-            if [ "$NO_COPY" = false ]; then
-                # copy files from remote_tmp directory to the copy_root_dir
-                ssh $SSH_PARAMS "${remote_server}" "tar cf - -C \"${remote_tmp}\" . | ${TAR_EXEC} tar xf - -C \"$COPY_ROOT_DIR\""
-            fi
-
-            rm "$list_file"
+        if [ "$NO_COPY" = false ]; then
+            # copy files from remote_tmp directory to the copy_root_dir
+            ssh $SSH_PARAMS "${remote_server}" "tar cf - -C \"${remote_tmp}\" . | ${TAR_EXEC} tar xf - -C \"$COPY_ROOT_DIR\""
         fi
     fi
     debug "copy_files, src_dir: $src_dir, remote_server: $remote_server, remote_tmp: $remote_tmp, COPY_ROOT_DIR: $COPY_ROOT_DIR, COPIED_DIR: $COPIED_DIR, TAR_EXEC: $TAR_EXEC"
@@ -129,26 +120,18 @@ copy_single_file() {
             exit 4
         fi
             
-        # create list file
-        list_file=$(mktemp /tmp/drist-sync.XXXXXXXXXX)
         # Get the current working directory.
-        if [ -f "$list_file" ]; then
-            # -l = keep symlink / -D = special device
-            find "${src_file}" -type f -or -type l | sed "s#^${src_file}/##" > "${list_file}"
+        file_name=$(basename -- "$src_file")
 
-            file_name=$(basename -- "$src_file")
+        # global used to delete the file
+        COPIED_FILE="${file_name}"
 
-            # global used to delete the file
-            COPIED_FILE="${file_name}"
+        # copy file to remote host.
+        tar cf - -C "$(dirname -- "$src_file")" "./${file_name}" | ssh $SSH_PARAMS "${remote_server}" 'tar xf - -C '"${remote_tmp}"
 
-            # copy file to remote host.
-            tar cf - -C "$(dirname -- "$src_file")" "./${file_name}" | ssh $SSH_PARAMS "${remote_server}" 'tar xf - -C '"${remote_tmp}"
-
-            # copy files from remote_tmp directory to the copy_root_dir
-            if [ "$NO_COPY" = false ]; then
-                ssh $SSH_PARAMS "${remote_server}" "tar cf - -C \"$remote_tmp\" . | ${TAR_EXEC} tar xf - -C \"\$COPY_ROOT_DIR\""
-            fi
-            rm "$list_file"
+        # copy files from remote_tmp directory to the copy_root_dir
+        if [ "$NO_COPY" = false ]; then
+            ssh $SSH_PARAMS "${remote_server}" "tar cf - -C \"$remote_tmp\" . | ${TAR_EXEC} tar xf - -C \"\$COPY_ROOT_DIR\""
         fi
     fi
     debug "copy_single_file, src_dir: $src_dir, remote_server: $remote_server, remote_tmp: $remote_tmp, COPY_ROOT_DIR: $COPY_ROOT_DIR, COPIED_FILE: $COPIED_FILE TAR_EXEC: $TAR_EXEC"
@@ -399,7 +382,6 @@ do
 
   # assigns value to TEMPDIR
   create_temp "${remote_server}"
-
   copy_files "${USE_DIR}" "${remote_server}" "$TEMPDIR"
   copy_files "${USE_DIR}-${HOSTNAME}" "${remote_server}" "$TEMPDIR"
   copy_single_file "${COPY_FILE}" "${remote_server}" "$TEMPDIR"
