@@ -48,6 +48,8 @@ drist also supports execution from a different working directory via the use of 
 
 -x      Delete copied files froom root directory
 
+-X      Do NOT delete the remote .drist directory (useful for debugging, don't use this flag in production)
+
 destination     Specify the remote servers you want drist to work on. The destination can be a file containing a list of hosts, one per line or it can be addresses passed in the command line. If you specify multiples servers, drist will loop over the list respecting the list order.  Note that only one file can be used in the command line.
 
 ## PORTABLE, FRICTION-LESS REMOTE DEPLOYS

@@ -34,6 +34,8 @@ COPY_ROOT_DIR='$HOME'         # root directory to copy files to, defaults to $HO
 COPIED_FILE=""                # file copied to $COPY_ROOT_DIR/filename
 COPIED_DIR=""                 # dir copied to $COPY_ROOT_DIR/directory
 DELETE_COPIED_FILES=false     # delete the copied files/directories
+DELETE_DRIST_DIR=true         # delete the .drist_XXXXX temp dir
+INVOKE_REMOTE_SCRIPT=true     # invoke the script on the remote server
 NO_COPY=false                 # do not copy the file/directory from the remote temp dir to the remote copy_root_dir
 
 # ---[ HELPERS ]--------------------------------------------------
@@ -42,7 +44,7 @@ NO_COPY=false                 # do not copy the file/directory from the remote t
 # @brief displays usage information.
 usage() {
     echo "$0 v2.09"
-    echo "$0 [-v] [-vv] [-n] [-p] [-d] [-x] [-e [sudo|doas]] [-r remote-root-dir] [-S script-to-run] [-f files-to-copy-directory] [-F single-file-to-copy] destination [...]"
+    echo "$0 [-X] [-v] [-vv] [-n] [-p] [-d] [-x] [-e [sudo|doas]] [-r remote-root-dir] [-S script-to-run] [-f files-to-copy-directory] [-F single-file-to-copy] destination [...]"
     exit 0
 }
 
@@ -292,8 +294,8 @@ do
         -d)                                             # truncate hostname
             TRUNCATE=1
             ;;
-        -n)                                             # do not copy files out of the .drist temp dir
-            NO_COPY=true                                # instead, the script can use them directly in the temp dir
+        -n)                                             # do not duplicate the .drist temp dir,
+            NO_COPY=true                                # instead, the script can use/copy files directly from the drist temp dir
             ;;
         -r)                                             # root directory to copy files to, defaults to $HOME
             [ $# -gt 1 ] || usage "-r requires a root directory to copy files to"
@@ -322,6 +324,12 @@ do
             [ $# -gt 1 ] || usage "-F requires a file name"
             shift
             COPY_FILE="$1"
+            ;;
+        -S)                                             # skip invoking, the remote script, useful for debugging scripts
+            INVOKE_REMOTE_SCRIPT=false
+            ;;
+        -X)                                             # don't delete the remote .drist dir, useful for debugging scripts
+            DELETE_DRIST_DIR=false
             ;;
         -e*)                                            # elevate permissions.
             if [ $# -gt 1 ] && case "$2" in -*) false;; *) true;; esac; then
@@ -386,9 +394,13 @@ do
   copy_files "${USE_DIR}-${HOSTNAME}" "${remote_server}" "$TEMPDIR"
   copy_single_file "${COPY_FILE}" "${remote_server}" "$TEMPDIR"
   copy_single_file "${COPY_FILE}-${HOSTNAME}" "${remote_server}" "$TEMPDIR"
-  remote_script "${USE_FILE}" "${remote_server}" "$TEMPDIR"
-  remote_script "${USE_FILE}-${HOSTNAME}" "${remote_server}" "$TEMPDIR"
-  delete_temp "${remote_server}" "$TEMPDIR"
+  if [ "$INVOKE_REMOTE_SCRIPT" ]; then
+      remote_script "${USE_FILE}" "${remote_server}" "$TEMPDIR"
+      remote_script "${USE_FILE}-${HOSTNAME}" "${remote_server}" "$TEMPDIR"
+  fi
+  if [ "$DELETE_DRIST_DIR" ]; then
+      delete_temp "${remote_server}" "$TEMPDIR"
+  fi
   if [ "$DELETE_COPIED_FILES" = true ]  && [ "$NO_COPY" = false ]; then
     delete_copied_files "${remote_server}"
   fi
