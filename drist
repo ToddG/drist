@@ -29,28 +29,42 @@ USE_DIR="files"               # default directory to upload if no optional switc
 SSH_PARAMS=""                 # default ssh parameters.
 COPY_FILE=""                  # default single file to copy.
 TEMPDIR=""                    # assigned to in the create_temp() function
-DEBUG=false                   # true or false
+VERBOSE_LOGGING=false         # true or false
 COPY_ROOT_DIR='$HOME'         # root directory to copy files to, defaults to $HOME
 COPIED_FILE=""                # file copied to $COPY_ROOT_DIR/filename
 COPIED_DIR=""                 # dir copied to $COPY_ROOT_DIR/directory
 DELETE_COPIED_FILES=false     # delete the copied files/directories
 DELETE_DRIST_DIR=true         # delete the .drist_XXXXX temp dir
 INVOKE_REMOTE_SCRIPT=true     # invoke the script on the remote server
-NO_COPY=false                 # do not copy the file/directory from the remote temp dir to the remote copy_root_dir
+COPY_DRIST_DIR=true           # copy the file/directory from the remote temp dir to the remote copy_root_dir
 
 # ---[ HELPERS ]--------------------------------------------------
 ##
 # usage --
 # @brief displays usage information.
 usage() {
-    echo "$0 v2.09"
-    echo "$0 [-X] [-v] [-vv] [-n] [-p] [-d] [-x] [-e [sudo|doas]] [-r remote-root-dir] [-S script-to-run] [-f files-to-copy-directory] [-F single-file-to-copy] destination [...]"
+    echo "$0 v3.0.0"
+    echo "$0 [-h| -help] [-v] [-vv] [-th] [-nc] [-crd] [-ps] [-dcf] [-sf] [-ud] [-uf] [-si] [-ndd] [-e [sudo|doas]] destination [...]"
+    echo "$0 -h   | -help                     : display this help message"
+    echo "$0 -v   | -verbose-logging          : verbose logging"
+    echo "$0 -vv  | -very-verbose-logging     : set -x in target script for max logging"
+    echo "$0 -th  | -truncate-hostname        : truncate hostname"
+    echo "$0 -nc  | -no-copy-drist-dir        : do not copy the temp .drist_XXX dir"
+    echo "$0 -crd | -copy-root-dir            : root directory to copy the temp .drist_XXX dir to"
+    echo "$0 -ps  | -persistent-ssh           : configure ssh connection to be persistent"
+    echo "$0 -dcf | -delete-copied-files      : delete copied files from the copy root dir when script finishes"
+    echo "$0 -sf  | -script-file              : script file to run"
+    echo "$0 -ud  | -upload-dir               : directory to upload to remote server"
+    echo "$0 -uf  | -upload-file              : file to upload to remote server"
+    echo "$0 -si  | -skip-invoke              : skip invoking remote script (dry-run)"
+    echo "$0 -ndd | -no-delete-drist-dir      : do NOT delete remote temp .drist_XXX dir (debugging)"
+    echo "$0 -ep  | -elevate-permissions      : elevate permissions using [sudo|doas|...]"
     exit 0
 }
 
 debug(){
-    if [ "$DEBUG" = true ]; then
-        echo "[DEBUG] $@"
+    if [ "$VERBOSE_LOGGING" = true ]; then
+        echo "[VERBOSE_LOGGING] $@"
     fi
 }
 
@@ -86,7 +100,7 @@ copy_files() {
         # Copy files to remote host.
         tar cf - -C "$(dirname -- ${src_dir})" -- "${src_base}" | ssh $SSH_PARAMS "${remote_server}" 'tar xf - -C '"${remote_tmp}"
 
-        if [ "$NO_COPY" = false ]; then
+        if [ "$COPY_DRIST_DIR" ]; then
             # copy files from remote_tmp directory to the copy_root_dir
             ssh $SSH_PARAMS "${remote_server}" "tar cf - -C \"${remote_tmp}\" . | ${TAR_EXEC} tar xf - -C \"$COPY_ROOT_DIR\""
         fi
@@ -132,7 +146,7 @@ copy_single_file() {
         tar cf - -C "$(dirname -- "$src_file")" "./${file_name}" | ssh $SSH_PARAMS "${remote_server}" 'tar xf - -C '"${remote_tmp}"
 
         # copy files from remote_tmp directory to the copy_root_dir
-        if [ "$NO_COPY" = false ]; then
+        if [ "$COPY_DRIST_DIR" ]; then
             ssh $SSH_PARAMS "${remote_server}" "tar cf - -C \"$remote_tmp\" . | ${TAR_EXEC} tar xf - -C \"$COPY_ROOT_DIR\""
         fi
     fi
@@ -282,62 +296,66 @@ do
             shift
             break
             ;;
-        -h*)                                            # Help
+        "-h"|"-help")
             usage
             ;;
-        -v)                                             # enable debug logging
-            DEBUG=true
+        "-v"|"-verbose-logging")
+            VERBOSE_LOGGING=true
             ;;
-        -vv)                                            # enable debug verbose logging
+        "-vv"|"-very-verbose-logging")
             set -x
             ;;
-        -d)                                             # truncate hostname
+        "-th"|"-truncate-hostname")
             TRUNCATE=1
             ;;
-        -n)                                             # do not duplicate the .drist temp dir,
-            NO_COPY=true                                # instead, the script can use/copy files directly from the drist temp dir
+        "-nc"|"-no-copy-drist-dir")
+            # do not copy the temp .drist dir to a separate directory
+            COPY_DRIST_DIR=false
             ;;
-        -r)                                             # root directory to copy files to, defaults to $HOME
-            [ $# -gt 1 ] || usage "-r requires a root directory to copy files to"
+        "-crd"|"-copy-root-directory")
+            [ $# -gt 1 ] || usage "-crd requires a root directory to copy files to"
             shift
             old_copy_root_dir="$COPY_ROOT_DIR"
             COPY_ROOT_DIR="$1"
             debug "COPY_ROOT_DIR changed from default $old_copy_root_dir to $COPY_ROOT_DIR"
             ;;
-        -p)                                             # persistent ssh
+        "-ps"|"-persistent-ssh")
             SSHONCE=1
             ;;
-        -x)                                             # delete copied files when script finishes
+        "-dcf"|"-delete-copied-files")
+            # delete copied files when script finishes
             DELETE_COPIED_FILES=true
             ;;
-        -S)                                             # script file to run
-            [ $# -gt 1 ] || usage "-S requires a script name"
+        "-sf"|"-script-file")
+            # script file to run
+            [ $# -gt 1 ] || usage "-sf requires a script name"
             shift
             USE_FILE="$1"
             ;;
-        -f)                                             # directory of files to upload
-            [ $# -gt 1 ] || usage "-f requires a directory location"
+        "-ud"|"-upload-dir")
+            # directory of files to upload
+            [ $# -gt 1 ] || usage "-ud requires a directory location"
             shift
             USE_DIR="$1"
             ;;
-        -F)                                             # file to upload
-            [ $# -gt 1 ] || usage "-F requires a file name"
+        "-uf"|"-upload-file")
+            # file to upload
+            [ $# -gt 1 ] || usage "-uf requires a file name"
             shift
             COPY_FILE="$1"
             ;;
-        -S)                                             # skip invoking, the remote script, useful for debugging scripts
+        "-si"|"-skip-invoke")
+            # skip invoking the remote script, useful for debugging scripts
             INVOKE_REMOTE_SCRIPT=false
             ;;
-        -X)                                             # don't delete the remote .drist dir, useful for debugging scripts
+        "-ndd"|"-no-delete-drist-dir")
+            # don't delete the temp .drist dir, useful for debugging scripts
             DELETE_DRIST_DIR=false
             ;;
-        -e*)                                            # elevate permissions.
-            if [ $# -gt 1 ] && case "$2" in -*) false;; *) true;; esac; then
-                shift
-                PRIVILEGES_BIN="${1#-e}"
-            fi
-            PRIVILEGES=1
-            debug "privileges, PRIVILEGES_BIN: $PRIVILEGES_BIN, PRIVILEGES=$PRIVILEGES"
+        "-ep"|"-elevate-permissions")                                            # elevate permissions.
+            [ $# -gt 1 ] || usage "-ep requires an elevation tool [sudo|doas]"
+            shift
+            PRIVILEGES_BIN="$1"
             ;;
         -*)
             usage "unknown option $1"
@@ -401,7 +419,7 @@ do
   if [ "$DELETE_DRIST_DIR" ]; then
       delete_temp "${remote_server}" "$TEMPDIR"
   fi
-  if [ "$DELETE_COPIED_FILES" = true ]  && [ "$NO_COPY" = false ]; then
+  if [ "$DELETE_COPIED_FILES" = true ]  && [ "$COPY_DRIST_DIR" = false ]; then
     delete_copied_files "${remote_server}"
   fi
 
