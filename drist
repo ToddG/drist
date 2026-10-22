@@ -5,9 +5,6 @@
 # A tool to configure and synchronize configurations to, and/or run
 # scrips on remote host(s) via tar(1) and ssh(1).
 #
-# SYNOPSIS
-# drist [-p] [-d] [-e [sudo|doas]] [-S script] [-f files-directory] [-F file-to-copy] destination [...]
-#
 # -----------------------------------------------------------------------------
 # Copyright (c) 2018, Rapenne Solène
 # Copyright (c) 2025, John Kaul
@@ -16,6 +13,9 @@
 #
 # SPDX-License-Identifier: BSD-2-Clause
 # -----------------------------------------------------------------------------
+
+set -u
+
 
 # ---[ GLOBALS ]--------------------------------------------------
 PRIVILEGES=0                  # Run with escalated privileges
@@ -29,7 +29,6 @@ USE_DIR="files"               # default directory to upload if no optional switc
 SSH_PARAMS=""                 # default ssh parameters.
 COPY_FILE=""                  # default single file to copy.
 TEMPDIR=""                    # assigned to in the create_temp() function
-VERBOSE_LOGGING=false         # true or false
 COPY_ROOT_DIR='$HOME'         # root directory to copy files to, defaults to $HOME
 COPIED_FILE=""                # file copied to $COPY_ROOT_DIR/filename
 COPIED_DIR=""                 # dir copied to $COPY_ROOT_DIR/directory
@@ -38,34 +37,301 @@ DELETE_DRIST_DIR=true         # delete the .drist_XXXXX temp dir
 INVOKE_REMOTE_SCRIPT=true     # invoke the script on the remote server
 COPY_DRIST_DIR=true           # copy the file/directory from the remote temp dir to the remote copy_root_dir
 
+
+# ---[ LOGGING ]--------------------------------------------------
+DEFAULT_MSG=""
+DEFAULT_CMD=""
+DEFAULT_OUTPUT=""
+
+# default global log level is info
+GLOBAL_LOG_LEVEL=2
+
+TRACE_LOG_LEVEL=0
+DEBUG_LOG_LEVEL=1
+INFO_LOG_LEVEL=2
+WARN_LOG_LEVEL=3
+ERROR_LOG_LEVEL=4
+
+CLIENT=$(hostname)
+
+update_log_level(){
+  LEVEL=$1
+  case $LEVEL in
+    "trace")                    # trace log level
+        GLOBAL_LOG_LEVEL=$TRACE_LOG_LEVEL
+    ;;
+    "debug")                    # debug log level
+        GLOBAL_LOG_LEVEL=$DEBUG_LOG_LEVEL
+    ;;
+    "info")                     # info log level
+        GLOBAL_LOG_LEVEL=$INFO_LOG_LEVEL
+    ;;
+    "warn")                     # warning log level
+        GLOBAL_LOG_LEVEL=$WARN_LOG_LEVEL
+    ;;
+    "warning")                  # warning log level
+        GLOBAL_LOG_LEVEL=$WARN_LOG_LEVEL
+    ;;
+    "error")                    # error log level
+        GLOBAL_LOG_LEVEL=$ERROR_LOG_LEVEL
+    ;;
+    "*")                        # unknown log level
+        echo "UKNOWN LOG LEVEL, DEFAULTING TO INFO"
+        GLOBAL_LOG_LEVEL=$INFO_LOG_LEVEL
+    ;;
+  esac
+}
+
+log_level_name(){
+  LEVEL=$1
+  case $LEVEL in
+    0)
+      CURRENT_LOG_LEVEL_NAME="TRACE"
+    ;;
+    1)
+      CURRENT_LOG_LEVEL_NAME="DEBUG"
+    ;;
+    2)
+      CURRENT_LOG_LEVEL_NAME="INFO"
+    ;;
+    3)
+      CURRENT_LOG_LEVEL_NAME="WARN"
+    ;;
+    4)
+      CURRENT_LOG_LEVEL_NAME="ERROR"
+    ;;
+   *)
+      CURRENT_LOG_LEVEL_NAME="UNKNOWN"
+    ;;
+  esac
+}
+
+# echo a log message with details depending on value
+# of GLOBAL_LOG_LEVEL 0-5 (trace|debug|info|warn|error)
+log(){
+  # -----------------------------
+  # params
+  # -----------------------------
+  LEVEL=$1
+  TOPIC=$2
+  MSG="${3:-$DEFAULT_MSG}"
+  CMD="${4:-$DEFAULT_CMD}"
+  OUTPUT="${5:-$DEFAULT_OUTPUT}"
+  # -----------------------------
+  # invariants
+  # -----------------------------
+  if [ -z "$LEVEL" ]; then
+    echo "log failed, LEVEL not set or is blank"
+  fi
+  if [ -z "$TOPIC" ]; then
+    echo "log failed, TOPIC not set or is blank"
+  fi
+  if [ -z "$MSG" ]; then
+    echo "log failed, MSG not set or is blank"
+  fi
+
+  if [ $LEVEL -ge $GLOBAL_LOG_LEVEL ]; then
+      log_level_name $LEVEL
+      case $LEVEL in
+          0 | 1 | 2)
+              case $GLOBAL_LOG_LEVEL in
+                  0)
+                    echo "[$CLIENT $(date '+%Y-%m-%d %H:%M:%S')][$CURRENT_LOG_LEVEL_NAME]:$TOPIC:$MSG:$CMD:$OUTPUT"
+                  ;;
+                  1)
+                    echo "[$CLIENT $(date '+%Y-%m-%d %H:%M:%S')][$CURRENT_LOG_LEVEL_NAME]:$TOPIC:$MSG:$CMD"
+                  ;;
+                  2)
+                    echo "[$CLIENT $(date '+%Y-%m-%d %H:%M:%S')][$CURRENT_LOG_LEVEL_NAME]:$TOPIC:$MSG"
+                  ;;
+                  *)
+                    echo "[$CLIENT $(date '+%Y-%m-%d %H:%M:%S')][$CURRENT_LOG_LEVEL_NAME]:$TOPIC:$MSG"
+                  ;;
+              esac
+          ;;
+          3)
+            echo "[$CLIENT $(date '+%Y-%m-%d %H:%M:%S')][$CURRENT_LOG_LEVEL_NAME]:$TOPIC:$MSG:$CMD:$OUTPUT"
+          ;;
+          4)
+            echo "[$CLIENT $(date '+%Y-%m-%d %H:%M:%S')][$CURRENT_LOG_LEVEL_NAME]:$TOPIC:$MSG:$CMD:$OUTPUT"
+          ;;
+          *)
+          ;;
+    esac
+  fi
+}
+
+trace(){
+  # -----------------------------
+  # params
+  # -----------------------------
+  TOPIC=$1
+  MSG="${2:-$DEFAULT_MSG}"
+  CMD="${3:-$DEFAULT_CMD}"
+  OUTPUT="${@:-$DEFAULT_OUTPUT}"
+  # -----------------------------
+  # invariants
+  # -----------------------------
+  if [ -z "$TOPIC" ]; then
+    echo "trace failed, TOPIC not set or is blank"
+  fi
+  if [ -z "$MSG" ]; then
+    echo "trace failed, MSG not set or is blank"
+  fi
+
+  log $TRACE_LOG_LEVEL "$TOPIC" "$MSG" "$CMD" "$OUTPUT"
+}
+
+debug(){
+  # -----------------------------
+  # params
+  # -----------------------------
+  TOPIC=$1
+  MSG="${2:-$DEFAULT_MSG}"
+  CMD="${3:-$DEFAULT_CMD}"
+  OUTPUT="${@:-$DEFAULT_OUTPUT}"
+  # -----------------------------
+  # invariants
+  # -----------------------------
+  if [ -z "$TOPIC" ]; then
+    echo "debug failed, TOPIC not set or is blank"
+  fi
+  if [ -z "$MSG" ]; then
+    echo "debug failed, MSG not set or is blank"
+  fi
+
+  log $DEBUG_LOG_LEVEL "$TOPIC" "$MSG" "$CMD" "$OUTPUT"
+}
+
+info(){
+  # -----------------------------
+  # params
+  # -----------------------------
+  TOPIC=$1
+  MSG="${2:-$DEFAULT_MSG}"
+  CMD="${3:-$DEFAULT_CMD}"
+  OUTPUT="${@:-$DEFAULT_OUTPUT}"
+  # -----------------------------
+  # invariants
+  # -----------------------------
+  if [ -z "$TOPIC" ]; then
+    echo "info failed, TOPIC not set or is blank"
+  fi
+  if [ -z "$MSG" ]; then
+    echo "info failed, MSG not set or is blank"
+  fi
+
+  log $INFO_LOG_LEVEL "$TOPIC" "$MSG" "$CMD" "$OUTPUT"
+  
+}
+
+warn(){
+  # -----------------------------
+  # params
+  # -----------------------------
+  TOPIC=$1
+  MSG="${2:-$DEFAULT_MSG}"
+  CMD="${3:-$DEFAULT_CMD}"
+  OUTPUT="${@:-$DEFAULT_OUTPUT}"
+  # -----------------------------
+  # invariants
+  # -----------------------------
+  if [ -z "$TOPIC" ]; then
+    echo "warning failed, TOPIC not set or is blank"
+  fi
+  if [ -z "$MSG" ]; then
+    echo "warning failed, MSG not set or is blank"
+  fi
+
+  log $WARN_LOG_LEVEL "$TOPIC" "$MSG" "$CMD" "$OUTPUT"
+}
+
+error(){
+  # -----------------------------
+  # params
+  # -----------------------------
+  TOPIC=$1
+  MSG="${2:-$DEFAULT_MSG}"
+  CMD="${3:-$DEFAULT_CMD}"
+  OUTPUT="${@:-$DEFAULT_OUTPUT}"
+  # -----------------------------
+  # invariants
+  # -----------------------------
+  if [ -z "$TOPIC" ]; then
+    echo "error failed, TOPIC not set or is blank"
+  fi
+  if [ -z "$MSG" ]; then
+    echo "error failed, MSG not set or is blank"
+  fi
+
+  log $ERROR_LOG_LEVEL "$TOPIC" "$MSG" "$CMD" "$OUTPUT"
+  exit 1
+}
+
+
+# test
+test_logging(){
+  update_log_level $1
+  echo "test_logging"
+  echo "test_logging: GLOBAL_LOG_LEVEL=$GLOBAL_LOG_LEVEL"
+  trace "test_trace" "msg" "data1" "data2" "data3" "data4"
+  debug "test_debug" "msg" "data1" "data2" "data3" "data4"
+  info "test_info" "msg" "data1" "data2" "data3" "data4"
+  warn "test_warn" "msg" "data1" "data2" "data3" "data4"
+}
+
+# test_logging
+# test_logging: GLOBAL_LOG_LEVEL=0
+# [builder 2026-10-22 15:40:32][TRACE]:test_trace:msg:data1:test_trace msg data1 data2 data3 data4
+# [builder 2026-10-22 15:40:32][DEBUG]:test_debug:msg:data1:test_debug msg data1 data2 data3 data4
+# [builder 2026-10-22 15:40:32][INFO]:test_info:msg:data1:test_info msg data1 data2 data3 data4
+# [builder 2026-10-22 15:40:32][WARN]:test_warn:msg:data1:test_warn msg data1 data2 data3 data4
+# test_logging
+# test_logging: GLOBAL_LOG_LEVEL=1
+# [builder 2026-10-22 15:40:32][DEBUG]:test_debug:msg:data1
+# [builder 2026-10-22 15:40:32][INFO]:test_info:msg:data1
+# [builder 2026-10-22 15:40:32][WARN]:test_warn:msg:data1:test_warn msg data1 data2 data3 data4
+# test_logging
+# test_logging: GLOBAL_LOG_LEVEL=2
+# [builder 2026-10-22 15:40:32][INFO]:test_info:msg
+# [builder 2026-10-22 15:40:32][WARN]:test_warn:msg:data1:test_warn msg data1 data2 data3 data4
+# test_logging
+# test_logging: GLOBAL_LOG_LEVEL=3
+# [builder 2026-10-22 15:40:32][WARN]:test_warn:msg:data1:test_warn msg data1 data2 data3 data4
+# test_logging
+# test_logging: GLOBAL_LOG_LEVEL=4
+
+logging_test(){
+    test_logging "trace"
+    test_logging "debug"
+    test_logging "info"
+    test_logging "warn"
+    test_logging "error"
+    exit 1
+}
+
+# 
 # ---[ HELPERS ]--------------------------------------------------
 ##
 # usage --
 # @brief displays usage information.
 usage() {
     echo "$0 v3.0.0"
-    echo "$0 [-h| -help] [-v] [-vv] [-th] [-nc] [-crd] [-ps] [-dcf] [-sf] [-ud] [-uf] [-si] [-ndd] [-e [sudo|doas]] destination [...]"
-    echo "$0 -h   | -help                     : display this help message"
-    echo "$0 -v   | -verbose-logging          : verbose logging"
-    echo "$0 -vv  | -very-verbose-logging     : set -x in target script for max logging"
-    echo "$0 -th  | -truncate-hostname        : truncate hostname"
-    echo "$0 -nc  | -no-copy-drist-dir        : do not copy the temp .drist_XXX dir"
-    echo "$0 -crd | -copy-root-dir            : root directory to copy the temp .drist_XXX dir to"
-    echo "$0 -ps  | -persistent-ssh           : configure ssh connection to be persistent"
-    echo "$0 -dcf | -delete-copied-files      : delete copied files from the copy root dir when script finishes"
-    echo "$0 -sf  | -script-file              : script file to run"
-    echo "$0 -ud  | -upload-dir               : directory to upload to remote server"
-    echo "$0 -uf  | -upload-file              : file to upload to remote server"
-    echo "$0 -si  | -skip-invoke              : skip invoking remote script (dry-run)"
-    echo "$0 -ndd | -no-delete-drist-dir      : do NOT delete remote temp .drist_XXX dir (debugging)"
-    echo "$0 -ep  | -elevate-permissions      : elevate permissions using [sudo|doas|...]"
+    echo "$0 [-h| -help] [-v] [-vv] [-th] [-nc] [-crd] [-ps] [-dcf] [-sf] [-ud] [-uf] [-si] [-ndd] [-ep [sudo|doas|...]] destination [...]"
+    echo "$0 -h   | --help                     : display this help message"
+    echo "$0 -ll  | --log-level                : configure log level [trace|debug|info|warn|error]"
+    echo "$0 -th  | --truncate-hostname        : truncate hostname"
+    echo "$0 -nc  | --no-copy-drist-dir        : do not copy the temp .drist_XXX dir"
+    echo "$0 -crd | --copy-root-dir            : root directory to copy the temp .drist_XXX dir to"
+    echo "$0 -ps  | --persistent-ssh           : configure ssh connection to be persistent"
+    echo "$0 -dcf | --delete-copied-files      : delete copied files from the copy root dir when script finishes"
+    echo "$0 -sf  | --script-file              : script file to run"
+    echo "$0 -ud  | --upload-dir               : directory to upload to remote server"
+    echo "$0 -uf  | --upload-file              : file to upload to remote server"
+    echo "$0 -si  | --skip-invoke              : skip invoking remote script (dry-run)"
+    echo "$0 -ndd | --no-delete-drist-dir      : do NOT delete remote temp .drist_XXX dir (debugging)"
+    echo "$0 -ep  | --elevate-permissions      : elevate permissions using [sudo|doas|...]"
     exit 0
-}
-
-debug(){
-    if [ "$VERBOSE_LOGGING" = true ]; then
-        echo "[VERBOSE_LOGGING] $@"
-    fi
 }
 
 ##
@@ -81,14 +347,14 @@ copy_files() {
     remote_server=$2
     remote_tmp=$3
 
+    info "copy_files" "$CLIENT:$src_dir -> $remote_server:$remote_tmp"
+    
     if [ -d "${src_dir}" ]; then
         if [ -z "${remote_server}" ]; then
-            echo "remote_server is blank, exiting"
-            exit 1
+            error "copy_files" "remote_server is blank, exiting"
         fi
         if [ -z "${remote_tmp}" ]; then
-            echo "remote_tmp is blank, exiting"
-            exit 2
+            error "copy_files" "remote_tmp is blank, exiting"
         fi
             
         # basename of source dir (e.g. files-server.local from /local/path/to/upload/directory)
@@ -99,13 +365,15 @@ copy_files() {
 
         # Copy files to remote host.
         tar cf - -C "$(dirname -- ${src_dir})" -- "${src_base}" | ssh $SSH_PARAMS "${remote_server}" 'tar xf - -C '"${remote_tmp}"
+        debug "copy_files" "copied $src_dir -> $remote_server/$remote_tmp" "COPY_ROOT_DIR: $COPY_ROOT_DIR, COPIED_FILE: $COPIED_FILE TAR_EXEC: $TAR_EXEC"
 
         if [ "$COPY_DRIST_DIR" ]; then
             # copy files from remote_tmp directory to the copy_root_dir
             ssh $SSH_PARAMS "${remote_server}" "tar cf - -C \"${remote_tmp}\" . | ${TAR_EXEC} tar xf - -C \"$COPY_ROOT_DIR\""
+            debug "copy_files" "copied $remote_server:$remote_tmp -> $remote_server:$remote_tmp/$COPY_ROOT_DIR" "COPY_ROOT_DIR: $COPY_ROOT_DIR, COPIED_DIR: $COPIED_DIR TAR_EXEC: $TAR_EXEC"
         fi
     fi
-    debug "copy_files, src_dir: $src_dir, remote_server: $remote_server, remote_tmp: $remote_tmp, COPY_ROOT_DIR: $COPY_ROOT_DIR, COPIED_DIR: $COPIED_DIR, TAR_EXEC: $TAR_EXEC"
+    debug "copy_files" "src_dir: $src_dir, remote_server: $remote_server, remote_tmp: $remote_tmp, COPY_ROOT_DIR: $COPY_ROOT_DIR, COPIED_DIR: $COPIED_DIR, TAR_EXEC: $TAR_EXEC"
 }
 
 ##
@@ -126,14 +394,14 @@ copy_single_file() {
     remote_server=$2
     remote_tmp=$3
 
+    info "copy_single_file" "$CLIENT:$src_file ->$remote_server:$remote_tmp"
+
     if [ -f "${src_file}" ]; then
         if [ -z "${remote_server}" ]; then
-            echo "remote_server is blank, exiting"
-            exit 3
+            error "copy_single_file" "remote_server is blank, exiting"
         fi
         if [ -z "${remote_tmp}" ]; then
-            echo "remote_tmp is blank, exiting"
-            exit 4
+            error "copy_single_file" "remote_tmp is blank, exiting"
         fi
             
         # Get the current working directory.
@@ -144,13 +412,14 @@ copy_single_file() {
 
         # copy file to remote host.
         tar cf - -C "$(dirname -- "$src_file")" "./${file_name}" | ssh $SSH_PARAMS "${remote_server}" 'tar xf - -C '"${remote_tmp}"
+        debug "copy_single_file" "copied $src_dir/$file_name -> $remote_server/$remote_tmp" "COPY_ROOT_DIR: $COPY_ROOT_DIR, COPIED_FILE: $COPIED_FILE TAR_EXEC: $TAR_EXEC"
 
         # copy files from remote_tmp directory to the copy_root_dir
         if [ "$COPY_DRIST_DIR" ]; then
             ssh $SSH_PARAMS "${remote_server}" "tar cf - -C \"$remote_tmp\" . | ${TAR_EXEC} tar xf - -C \"$COPY_ROOT_DIR\""
+            debug "copy_single_file" "copied $remote_server:$remote_tmp -> $remote_server:$remote_tmp/$COPY_ROOT_DIR" "COPY_ROOT_DIR: $COPY_ROOT_DIR, COPIED_FILE: $COPIED_FILE TAR_EXEC: $TAR_EXEC"
         fi
     fi
-    debug "copy_single_file, src_dir: $src_dir, remote_server: $remote_server, remote_tmp: $remote_tmp, COPY_ROOT_DIR: $COPY_ROOT_DIR, COPIED_FILE: $COPIED_FILE TAR_EXEC: $TAR_EXEC"
 }
 
 ##
@@ -166,16 +435,14 @@ remote_script() {
     remote_server=$2
     remote_tmp=$3
 
-    debug "remote_script, script_file: $script_file, remote_server: $remote_server, remote_temp: $remote_tmp, EXEC: $EXEC"
+    info "remote_script" "started" "script_file: $script_file, remote_server: $remote_server, remote_temp: $remote_tmp, EXEC: $EXEC"
 
     if [ -f "${script_file}" ]; then
         if [ -z "${remote_server}" ]; then
-            echo "remote_server is blank, exiting"
-            exit 5
+            error "remote_script" "remote_server is blank, exiting"
         fi
         if [ -z "${remote_tmp}" ]; then
-            echo "remote_tmp is blank, exiting"
-            exit 6
+            error "remote_script" "remote_tmp is blank, exiting"
         fi
             
         file_name=$(basename ${script_file})
@@ -184,6 +451,7 @@ remote_script() {
             chmod u+x ${remote_tmp}/${file_name} && \
             ${EXEC} ${remote_tmp}/${file_name}" < "$script_file"
     fi
+    info "remote_script" "completed" "script_file: $script_file, remote_server: $remote_server, remote_temp: $remote_tmp, EXEC: $EXEC"
 }
 
 ##
@@ -193,15 +461,15 @@ remote_script() {
 # Parameters:
 delete_copied_files() {
     remote_server=$1
-    debug "delete_copied_files, remote_server: $remote_server, delete_copied_files: $DELETE_COPIED_FILES, copy_root_dir: $COPY_ROOT_DIR, copied_file: $COPIED_FILE, copied_dir: $COPIED_DIR, EXEC: $EXEC"
+    info "delete_copied_files" "remote_server: $remote_server" 
     if [ "$DELETE_COPIED_FILES" = true ]; then
         if [ -n "$COPIED_FILE" ]; then
             ssh $SSH_PARAMS "${remote_server}" "${EXEC} rm $COPY_ROOT_DIR/$COPIED_FILE"
-            debug "deleted file: $remote_server:$COPY_ROOT_DIR/$COPIED_FILE"
+            debug "delete_copied_files" "deleted file: $remote_server:$COPY_ROOT_DIR/$COPIED_FILE" "delete_copied_files: $DELETE_COPIED_FILES, copy_root_dir: $COPY_ROOT_DIR, copied_file: $COPIED_FILE, copied_dir: $COPIED_DIR, EXEC: $EXEC"
         fi
         if [ -n "$COPIED_DIR" ]; then
             ssh $SSH_PARAMS "${remote_server}" "${EXEC} rm -rf $COPY_ROOT_DIR/$COPIED_DIR"
-            debug "deleted dir: $remote_server:$COPY_ROOT_DIR/$COPIED_DIR"
+            debug "delete_copied_files" "deleted dir: $remote_server:$COPY_ROOT_DIR/$COPIED_DIR" "delete_copied_files: $DELETE_COPIED_FILES, copy_root_dir: $COPY_ROOT_DIR, copied_file: $COPIED_FILE, copied_dir: $COPIED_DIR, EXEC: $EXEC"
         fi
     fi
 }
@@ -218,19 +486,16 @@ delete_copied_files() {
 create_temp() {
     remote_server=$1
 
-    debug "create_temp, remote_server: $remote_server"
+    info "create_temp" "remote_server: $remote_server"
     
     if [ -z "${remote_server}" ]; then
-        echo "remote_server is blank, exiting"
-        exit 7
+        error "create_temp" "remote_server is blank, exiting"
     fi
     TEMPDIR=$(ssh $SSH_PARAMS "${remote_server}" "mktemp -d ~/.drist_files_XXXXXXXXXXXXXXX")
     if [ -z "$TEMPDIR" ]; then
-        echo "mktemp error, TEMPDIR is not set, aborting"
-        exit 8
-    else
-        debug "created temp dir: $TEMPDIR on remote server: ${remote_server}"
+        error "create_temp" "mktemp error, TEMPDIR is not set, aborting"
     fi
+    info "create_temp" "created temp dir: ${remote_server}:$TEMPDIR"
 }
 
 ##
@@ -244,22 +509,19 @@ delete_temp() {
     remote_server=$1
     remote_tmp=$2
 
-    debug "delete_temp, remote_server: $remote_server, remote_tmp: $remote_tmp"
+    info "delete_temp" "delete $remote_server:$remote_tmp"
 
     if [ -z "${remote_server}" ]; then
-        echo "remote_server is blank, exiting"
-        exit 9
+        error "delete_temp" "remote_server is blank, exiting"
     fi
     if [ -z "${remote_tmp}" ]; then
-        echo "remote_tmp is blank, exiting"
-        exit 10
+        error "delete_temp" "remote_tmp is blank, exiting"
     fi
     if echo "${remote_tmp}" | grep drist_files_ >/dev/null ; then
         ssh $SSH_PARAMS "$remote_server" "rm -fr ${remote_tmp}"
-        debug "deleted temp dir: $remote_tmp on remote server: ${remote_server}"
+        debug "delete_temp" "deleted $remote_server:$remote_tmp" "SSH_PARAMS:$SSH_PARAMS"
     else
-        echo "Problem, temp dir was reset during execution, current value is = $remote_tmp"
-        exit 11
+        error "delete_temp" "temp dir was reset during execution, current value is = $remote_tmp"
     fi
 }
 
@@ -296,63 +558,65 @@ do
             shift
             break
             ;;
-        "-h"|"-help")
+        "-h"|"--help")
             usage
             ;;
-        "-v"|"-verbose-logging")
-            VERBOSE_LOGGING=true
+        "-ll"|"--log-level")
+            [ $# -gt 1 ] || usage "-ll requires a log level [trace|debug|info|warn|error]"
+            shift
+            update_log_level $1
             ;;
-        "-vv"|"-very-verbose-logging")
+        "-vv"|"--very-verbose-logging")
             set -x
             ;;
-        "-th"|"-truncate-hostname")
+        "-th"|"--truncate-hostname")
             TRUNCATE=1
             ;;
-        "-nc"|"-no-copy-drist-dir")
+        "-nc"|"--no-copy-drist-dir")
             # do not copy the temp .drist dir to a separate directory
             COPY_DRIST_DIR=false
             ;;
-        "-crd"|"-copy-root-directory")
+        "-crd"|"--copy-root-directory")
             [ $# -gt 1 ] || usage "-crd requires a root directory to copy files to"
             shift
             old_copy_root_dir="$COPY_ROOT_DIR"
             COPY_ROOT_DIR="$1"
-            debug "COPY_ROOT_DIR changed from default $old_copy_root_dir to $COPY_ROOT_DIR"
+            debug "runtime" "COPY_ROOT_DIR changed from default $old_copy_root_dir to $COPY_ROOT_DIR"
             ;;
-        "-ps"|"-persistent-ssh")
+        "-ps"|"--persistent-ssh")
             SSHONCE=1
             ;;
-        "-dcf"|"-delete-copied-files")
+        "-dcf"|"--delete-copied-files")
             # delete copied files when script finishes
             DELETE_COPIED_FILES=true
             ;;
-        "-sf"|"-script-file")
+        "-sf"|"--script-file")
             # script file to run
             [ $# -gt 1 ] || usage "-sf requires a script name"
             shift
             USE_FILE="$1"
             ;;
-        "-ud"|"-upload-dir")
+        "-ud"|"--upload-dir")
             # directory of files to upload
             [ $# -gt 1 ] || usage "-ud requires a directory location"
             shift
             USE_DIR="$1"
             ;;
-        "-uf"|"-upload-file")
+        "-uf"|"--upload-file")
             # file to upload
             [ $# -gt 1 ] || usage "-uf requires a file name"
             shift
             COPY_FILE="$1"
             ;;
-        "-si"|"-skip-invoke")
+        "-si"|"--skip-invoke")
             # skip invoking the remote script, useful for debugging scripts
             INVOKE_REMOTE_SCRIPT=false
             ;;
-        "-ndd"|"-no-delete-drist-dir")
+        "-ndd"|"--no-delete-drist-dir")
             # don't delete the temp .drist dir, useful for debugging scripts
             DELETE_DRIST_DIR=false
             ;;
-        "-ep"|"-elevate-permissions")                                            # elevate permissions.
+        "-ep"|"--elevate-permissions")                                            # elevate permissions.
             [ $# -gt 1 ] || usage "-ep requires an elevation tool [sudo|doas]"
             shift
             PRIVILEGES_BIN="$1"
@@ -369,13 +633,13 @@ done
 if [ "$PRIVILEGES" -eq 1 ]; then
     EXEC="$PRIVILEGES_BIN"
     TAR_EXEC="$PRIVILEGES_BIN"
-    debug "EXEC: $EXEC, TAR_EXEC: $TAR_EXEC"
+    debug "runtime" "EXEC: $EXEC, TAR_EXEC: $TAR_EXEC"
 fi
 
 # use ControlMaster to make connections persistent
-if [ "$SSHONCE" -eq 1 ]; then
+if [ $SSHONCE -eq 1 ]; then
    SSH_PARAMS='-o ControlMaster=auto -o ControlPath=/tmp/drist_ssh_%h_%p_%r.sock -o ControlPersist=1m'
-   debug "ssh_params: $SSH_PARAMS"
+   debug "runtime" "ssh_params: $SSH_PARAMS"
 fi
 
 # start looping over server list
@@ -384,22 +648,20 @@ if [ -f "$1" ]; then
 else
     SERVER_LIST="$@"
 fi
-debug "server_list: $SERVER_LIST"
+debug "runtime" "server_list: $SERVER_LIST"
 
 if [ "${SERVER_LIST}" = "" ]; then
-    echo "No server specified"
-    exit 12
+    error "runtime" "No server specified"
 fi
 
 for remote_server in ${SERVER_LIST}
 do
 
-  debug "processing server: $remote_server"
+  debug "runtime" "processing server: $remote_server"
   # check if host exists
   HOSTNAME=$(ssh $SSH_PARAMS "$remote_server" "uname -n")
   if [ "$?" -ne 0 ]; then
-      echo "Error while ssh ${remote_server}"
-      exit 13
+      error "ssh failed ${remote_server}"
   fi
 
   if [ "$TRUNCATE" -eq 1 ]; then
