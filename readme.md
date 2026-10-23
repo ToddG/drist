@@ -27,7 +27,7 @@ drist also supports execution from a different working directory via the use of 
   drist $ drist -h
 
   v3.0.0
-  [-h| -help] [-v] [-vv] [-th] [-nc] [-cr] [-ps] [-dc] [-sf] [-ud] [-uf] [-si] [-nd] [-ep [sudo|doas|...]] destination [...]
+  [-h| -help] [-nk] [-v] [-vv] [-th] [-nc] [-cr] [-ps] [-dc] [-sf] [-ud] [-uf] [-si] [-nd] [-ep [sudo|doas|...]] destination [...]
   -h   | --help                     : display this help message
   -ll  | --log-level                : configure log level [trace|debug|info|warn|error]
   -th  | --truncate-hostname        : truncate hostname
@@ -41,6 +41,7 @@ drist also supports execution from a different working directory via the use of 
   -ni  | --no-invoke                : do NOT invoke the remote script
   -nd  | --no-delete-drist-dir      : do NOT delete remote temp .drist_XXX dir (debugging)
   -ep  | --elevate-permissions      : elevate permissions using [sudo|doas|...]
+  -nk  | --no-color-output          : print output without colors
 
 
   destination     Specify the remote servers you want drist to work on. The destination can be a file containing a list of hosts, one per line or it can be addresses passed in the command line. If you specify multiples servers, drist will loop over the list respecting the list order.  Note that only one file can be used in the command line.

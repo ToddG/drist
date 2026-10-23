@@ -34,9 +34,11 @@ DELETE_COPIED_FILES=false     # delete the copied files/directories
 DELETE_DRIST_DIR=true         # delete the .drist_XXXXX temp dir
 INVOKE_REMOTE_SCRIPT=true     # invoke the script on the remote server
 COPY_DRIST_DIR=true           # copy the file/directory from the remote temp dir to the remote copy_root_dir
+COLOR_ENABLED=true            # colorized output enabled by default, turn off with --no-color
 
 
 # ---[ LOGGING ]--------------------------------------------------
+
 DEFAULT_MSG=""
 DEFAULT_CMD=""
 DEFAULT_OUTPUT=""
@@ -49,6 +51,25 @@ DEBUG_LOG_LEVEL=1
 INFO_LOG_LEVEL=2
 WARN_LOG_LEVEL=3
 ERROR_LOG_LEVEL=4
+COLOR_ENABLED=""
+ECHO_CMD=""
+
+RED='\033[0;31m'
+YELLOW='\033[0;33m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+NOCOLOR='\033[0m'
+
+update_logging_colors(){
+  COLOR_ENABLED=$1
+  if [ "$COLOR_ENABLED" = "true" ]; then
+    ECHO_CMD="echo -e "
+  else
+    ECHO_CMD="echo"
+  fi
+}
+# default is to log in color
+update_logging_colors true
 
 CLIENT=$(hostname)
 
@@ -128,36 +149,59 @@ log(){
     echo "log failed, MSG not set or is blank"
   fi
 
+  if [ "$COLOR_ENABLED" = "true" ]; then
+    case $LEVEL in
+      $TRACE_LOG_LEVEL)
+        COLOR_PREFIX=$NOCOLOR
+        ;;
+      $DEBUG_LOG_LEVEL)
+        COLOR_PREFIX=$BLUE
+        ;;
+      $INFO_LOG_LEVEL)
+        COLOR_PREFIX=$GREEN
+        ;;
+      $WARN_LOG_LEVEL)
+        COLOR_PREFIX=$YELLOW
+        ;;
+      $ERROR_LOG_LEVEL)
+        COLOR_PREFIX=$RED
+        ;;
+    esac
+  else
+    COLOR_PREFIX=""
+  fi
+
   if [ $LEVEL -ge $GLOBAL_LOG_LEVEL ]; then
       log_level_name $LEVEL
       case $LEVEL in
-          0 | 1 | 2)
+          $TRACE_LOG_LEVEL | $DEBUG_LOG_LEVEL | $INFO_LOG_LEVEL)
               case $GLOBAL_LOG_LEVEL in
-                  0)
-                    echo "[$CLIENT $(date '+%Y-%m-%d %H:%M:%S')][$CURRENT_LOG_LEVEL_NAME]:$TOPIC:$MSG:$CMD:$OUTPUT"
+                  $TRACE_LOG_LEVEL)
+                    ${ECHO_CMD} "${COLOR_PREFIX}[$CLIENT $(date '+%Y-%m-%d %H:%M:%S')][$CURRENT_LOG_LEVEL_NAME]:$TOPIC:$MSG:$CMD:$OUTPUT"
                   ;;
-                  1)
-                    echo "[$CLIENT $(date '+%Y-%m-%d %H:%M:%S')][$CURRENT_LOG_LEVEL_NAME]:$TOPIC:$MSG:$CMD"
+                  $DEBUG_LOG_LEVEL)
+                    ${ECHO_CMD} "${COLOR_PREFIX}[$CLIENT $(date '+%Y-%m-%d %H:%M:%S')][$CURRENT_LOG_LEVEL_NAME]:$TOPIC:$MSG:$CMD"
                   ;;
-                  2)
-                    echo "[$CLIENT $(date '+%Y-%m-%d %H:%M:%S')][$CURRENT_LOG_LEVEL_NAME]:$TOPIC:$MSG"
+                  $INFO_LOG_LEVEL)
+                    ${ECHO_CMD} "${COLOR_PREFIX}[$CLIENT $(date '+%Y-%m-%d %H:%M:%S')][$CURRENT_LOG_LEVEL_NAME]:$TOPIC:$MSG"
                   ;;
                   *)
-                    echo "[$CLIENT $(date '+%Y-%m-%d %H:%M:%S')][$CURRENT_LOG_LEVEL_NAME]:$TOPIC:$MSG"
+                    ${ECHO_CMD} "${COLOR_PREFIX}[$CLIENT $(date '+%Y-%m-%d %H:%M:%S')][$CURRENT_LOG_LEVEL_NAME]:$TOPIC:$MSG"
                   ;;
               esac
           ;;
-          3)
-            echo "[$CLIENT $(date '+%Y-%m-%d %H:%M:%S')][$CURRENT_LOG_LEVEL_NAME]:$TOPIC:$MSG:$CMD:$OUTPUT"
+          $WARN_LOG_LEVEL)
+            ${ECHO_CMD} "${COLOR_PREFIX}[$CLIENT $(date '+%Y-%m-%d %H:%M:%S')][$CURRENT_LOG_LEVEL_NAME]:$TOPIC:$MSG:$CMD:$OUTPUT"
           ;;
-          4)
-            echo "[$CLIENT $(date '+%Y-%m-%d %H:%M:%S')][$CURRENT_LOG_LEVEL_NAME]:$TOPIC:$MSG:$CMD:$OUTPUT"
+          $ERROR_LOG_LEVEL)
+            ${ECHO_CMD} "${COLOR_PREFIX}[$CLIENT $(date '+%Y-%m-%d %H:%M:%S')][$CURRENT_LOG_LEVEL_NAME]:$TOPIC:$MSG:$CMD:$OUTPUT"
           ;;
           *)
           ;;
     esac
   fi
 }
+
 
 trace(){
   # -----------------------------
@@ -314,7 +358,7 @@ error(){
 # @brief displays usage information.
 usage() {
     echo "$0 v3.0.0"
-    echo "$0 [-h| -help] [-v] [-vv] [-th] [-nc] [-crd] [-ps] [-dcf] [-sf] [-ud] [-uf] [-si] [-ndd] [-ep [sudo|doas|...]] destination [...]"
+    echo "$0 [-h| -help] [-nk] [-v] [-vv] [-th] [-nc] [-crd] [-ps] [-dcf] [-sf] [-ud] [-uf] [-si] [-ndd] [-ep [sudo|doas|...]] destination [...]"
     echo "$0 -h   | --help                     : display this help message"
     echo "$0 -ll  | --log-level                : configure log level [trace|debug|info|warn|error]"
     echo "$0 -th  | --truncate-hostname        : truncate hostname"
@@ -328,6 +372,7 @@ usage() {
     echo "$0 -si  | --no-invoke                : do NOT invoke the remote script (dry-run)"
     echo "$0 -nd  | --no-delete-drist-dir      : do NOT delete remote temp .drist_XXX dir (debugging)"
     echo "$0 -ep  | --elevate-permissions      : elevate permissions using [sudo|doas|...]"
+    echo "$0 -nk  | --no-color-output          : print output without colors"
     exit 0
 }
 
@@ -344,8 +389,6 @@ copy_files() {
     remote_server=$2
     remote_tmp=$3
 
-    info "copy_files" "$CLIENT:$src_dir -> $remote_server:$remote_tmp"
-    
     if [ -d "${src_dir}" ]; then
         if [ -z "${remote_server}" ]; then
             error "copy_files" "remote_server is blank, exiting"
@@ -354,6 +397,7 @@ copy_files() {
             error "copy_files" "remote_tmp is blank, exiting"
         fi
             
+    
         # basename of source dir (e.g. files-server.local from /local/path/to/upload/directory)
         src_base=$(basename -- "${src_dir}")
 
@@ -369,6 +413,7 @@ copy_files() {
             ssh $SSH_PARAMS "${remote_server}" "tar cf - -C \"${remote_tmp}\" . | ${PRIVILEGES_BIN} tar xf - -C \"$COPY_ROOT_DIR\""
             debug "copy_files" "copied $remote_server:$remote_tmp -> $remote_server:$remote_tmp/$COPY_ROOT_DIR" "PRIVILEGES_BIN: $PRIVILEGES_BIN"
         fi
+        info "copy_files" "copied $CLIENT:$src_dir -> $remote_server:$remote_tmp"
     fi
 }
 
@@ -389,8 +434,6 @@ copy_single_file() {
     src_file=$1
     remote_server=$2
     remote_tmp=$3
-
-    info "copy_single_file" "$CLIENT:$src_file ->$remote_server:$remote_tmp"
 
     if [ -f "${src_file}" ]; then
         if [ -z "${remote_server}" ]; then
@@ -415,6 +458,7 @@ copy_single_file() {
             ssh $SSH_PARAMS "${remote_server}" "tar cf - -C \"$remote_tmp\" . | ${PRIVILEGES_BIN} tar xf - -C \"$COPY_ROOT_DIR\""
             debug "copy_single_file" "copied $remote_server:$remote_tmp -> $remote_server:$remote_tmp/$COPY_ROOT_DIR" "COPY_ROOT_DIR: $COPY_ROOT_DIR, COPIED_FILE: $COPIED_FILE PRIVILEGES_BIN: $PRIVILEGES_BIN"
         fi
+        info "copy_single_file" "copied $CLIENT:$src_file -> $remote_server:$remote_tmp"
     fi
 }
 
@@ -431,9 +475,9 @@ remote_script() {
     remote_server=$2
     remote_tmp=$3
 
-    info "remote_script" "starting" "script_file: $script_file, remote_server: $remote_server, remote_temp: $remote_tmp, EXEC: $EXEC, PRIVILEGES_BIN=$PRIVILEGES_BIN"
-
     if [ -f "${script_file}" ]; then
+        info "remote_script" "starting: script_file: $script_file" "remote_server: $remote_server, remote_temp: $remote_tmp, EXEC: $EXEC, PRIVILEGES_BIN=$PRIVILEGES_BIN"
+
         if [ -z "${remote_server}" ]; then
             error "remote_script" "remote_server is blank, exiting"
         fi
@@ -446,8 +490,8 @@ remote_script() {
             cat - > ${remote_tmp}/${file_name} && \
             chmod u+x ${remote_tmp}/${file_name} && \
             ${EXEC} ${remote_tmp}/${file_name}" < "$script_file"
+        info "remote_script" "completed: script_file: $script_file", "remote_server: $remote_server, remote_temp: $remote_tmp, EXEC: $EXEC, PRIVILEGES_BIN=$PRIVILEGES_BIN"
     fi
-    info "remote_script" "completed" "script_file: $script_file, remote_server: $remote_server, remote_temp: $remote_tmp, EXEC: $EXEC, PRIVILEGES_BIN=$PRIVILEGES_BIN"
 }
 
 ##
@@ -457,15 +501,14 @@ remote_script() {
 # Parameters:
 delete_copied_files() {
     remote_server=$1
-    info "delete_copied_files" "remote_server: $remote_server" 
     if [ "$DELETE_COPIED_FILES" = "true" ]; then
         if [ -n "$COPIED_FILE" ]; then
             ssh $SSH_PARAMS "${remote_server}" "${EXEC} rm $COPY_ROOT_DIR/$COPIED_FILE"
-            debug "delete_copied_files" "deleted file: $remote_server:$COPY_ROOT_DIR/$COPIED_FILE" "delete_copied_files: $DELETE_COPIED_FILES, copy_root_dir: $COPY_ROOT_DIR, copied_file: $COPIED_FILE, copied_dir: $COPIED_DIR, EXEC: $EXEC"
+            info "delete_copied_files" "deleted file: $remote_server:$COPY_ROOT_DIR/$COPIED_FILE" "delete_copied_files: $DELETE_COPIED_FILES, copy_root_dir: $COPY_ROOT_DIR, copied_file: $COPIED_FILE, copied_dir: $COPIED_DIR, EXEC: $EXEC"
         fi
         if [ -n "$COPIED_DIR" ]; then
             ssh $SSH_PARAMS "${remote_server}" "${EXEC} rm -rf $COPY_ROOT_DIR/$COPIED_DIR"
-            debug "delete_copied_files" "deleted dir: $remote_server:$COPY_ROOT_DIR/$COPIED_DIR" "delete_copied_files: $DELETE_COPIED_FILES, copy_root_dir: $COPY_ROOT_DIR, copied_file: $COPIED_FILE, copied_dir: $COPIED_DIR, EXEC: $EXEC"
+            info "delete_copied_files" "deleted dir: $remote_server:$COPY_ROOT_DIR/$COPIED_DIR" "delete_copied_files: $DELETE_COPIED_FILES, copy_root_dir: $COPY_ROOT_DIR, copied_file: $COPIED_FILE, copied_dir: $COPIED_DIR, EXEC: $EXEC"
         fi
     fi
 }
@@ -482,8 +525,6 @@ delete_copied_files() {
 create_temp() {
     remote_server=$1
 
-    info "create_temp" "remote_server: $remote_server"
-    
     if [ -z "${remote_server}" ]; then
         error "create_temp" "remote_server is blank, exiting"
     fi
@@ -505,8 +546,6 @@ delete_temp() {
     remote_server=$1
     remote_tmp=$2
 
-    info "delete_temp" "delete $remote_server:$remote_tmp"
-
     if [ -z "${remote_server}" ]; then
         error "delete_temp" "remote_server is blank, exiting"
     fi
@@ -515,7 +554,7 @@ delete_temp() {
     fi
     if echo "${remote_tmp}" | grep drist_files_ >/dev/null ; then
         ssh $SSH_PARAMS "$remote_server" "rm -fr ${remote_tmp}"
-        debug "delete_temp" "deleted $remote_server:$remote_tmp" "SSH_PARAMS:$SSH_PARAMS"
+        info "delete_temp" "deleted $remote_server:$remote_tmp" "SSH_PARAMS:$SSH_PARAMS"
     else
         error "delete_temp" "temp dir was reset during execution, current value is = $remote_tmp"
     fi
@@ -617,6 +656,9 @@ do
             shift
             PRIVILEGES_BIN="$1"
             EXEC="$PRIVILEGES_BIN sh -c "
+            ;;
+        "-nk"|"--no-color-output")
+            COLOR_ENABLED=false
             ;;
         -*)
             usage "unknown option $1"
