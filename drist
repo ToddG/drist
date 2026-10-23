@@ -18,10 +18,8 @@ set -u
 
 
 # ---[ GLOBALS ]--------------------------------------------------
-PRIVILEGES=0                  # Run with escalated privileges
-PRIVILEGES_BIN=doas           # binary to run privileged command.
+PRIVILEGES_BIN=""             # binary to run privileged command, e.g. [doas | sudo]
 EXEC='exec sh -c'             # posix compliant shell.
-TAR_EXEC=""                   # short exec when elevating permissions for tar commands, same as EXEC, except that defaults to ""
 SSHONCE=0                     # set up a socket for persistent connection.
 TRUNCATE=0                    # Remove the domain name from the hostname.
 USE_FILE="script"             # default script file to upload if no optional switches.
@@ -365,15 +363,14 @@ copy_files() {
 
         # Copy files to remote host.
         tar cf - -C "$(dirname -- ${src_dir})" -- "${src_base}" | ssh $SSH_PARAMS "${remote_server}" 'tar xf - -C '"${remote_tmp}"
-        debug "copy_files" "copied $src_dir -> $remote_server/$remote_tmp" "COPY_ROOT_DIR: $COPY_ROOT_DIR, COPIED_FILE: $COPIED_FILE TAR_EXEC: $TAR_EXEC"
+        debug "copy_files" "copied $CLIENT:$src_dir -> $remote_server:$remote_tmp"
 
-        if [ "$COPY_DRIST_DIR" ]; then
+        if [ "$COPY_DRIST_DIR" = "true" ]; then
             # copy files from remote_tmp directory to the copy_root_dir
-            ssh $SSH_PARAMS "${remote_server}" "tar cf - -C \"${remote_tmp}\" . | ${TAR_EXEC} tar xf - -C \"$COPY_ROOT_DIR\""
-            debug "copy_files" "copied $remote_server:$remote_tmp -> $remote_server:$remote_tmp/$COPY_ROOT_DIR" "COPY_ROOT_DIR: $COPY_ROOT_DIR, COPIED_DIR: $COPIED_DIR TAR_EXEC: $TAR_EXEC"
+            ssh $SSH_PARAMS "${remote_server}" "tar cf - -C \"${remote_tmp}\" . | ${PRIVILEGES_BIN} tar xf - -C \"$COPY_ROOT_DIR\""
+            debug "copy_files" "copied $remote_server:$remote_tmp -> $remote_server:$remote_tmp/$COPY_ROOT_DIR" "PRIVILEGES_BIN: $PRIVILEGES_BIN"
         fi
     fi
-    debug "copy_files" "src_dir: $src_dir, remote_server: $remote_server, remote_tmp: $remote_tmp, COPY_ROOT_DIR: $COPY_ROOT_DIR, COPIED_DIR: $COPIED_DIR, TAR_EXEC: $TAR_EXEC"
 }
 
 ##
@@ -412,12 +409,12 @@ copy_single_file() {
 
         # copy file to remote host.
         tar cf - -C "$(dirname -- "$src_file")" "./${file_name}" | ssh $SSH_PARAMS "${remote_server}" 'tar xf - -C '"${remote_tmp}"
-        debug "copy_single_file" "copied $src_dir/$file_name -> $remote_server/$remote_tmp" "COPY_ROOT_DIR: $COPY_ROOT_DIR, COPIED_FILE: $COPIED_FILE TAR_EXEC: $TAR_EXEC"
+        debug "copy_single_file" "copied $src_dir/$file_name -> $remote_server/$remote_tmp"
 
         # copy files from remote_tmp directory to the copy_root_dir
-        if [ "$COPY_DRIST_DIR" ]; then
-            ssh $SSH_PARAMS "${remote_server}" "tar cf - -C \"$remote_tmp\" . | ${TAR_EXEC} tar xf - -C \"$COPY_ROOT_DIR\""
-            debug "copy_single_file" "copied $remote_server:$remote_tmp -> $remote_server:$remote_tmp/$COPY_ROOT_DIR" "COPY_ROOT_DIR: $COPY_ROOT_DIR, COPIED_FILE: $COPIED_FILE TAR_EXEC: $TAR_EXEC"
+        if [ "$COPY_DRIST_DIR" = "true" ]; then
+            ssh $SSH_PARAMS "${remote_server}" "tar cf - -C \"$remote_tmp\" . | ${PRIVILEGES_BIN} tar xf - -C \"$COPY_ROOT_DIR\""
+            debug "copy_single_file" "copied $remote_server:$remote_tmp -> $remote_server:$remote_tmp/$COPY_ROOT_DIR" "COPY_ROOT_DIR: $COPY_ROOT_DIR, COPIED_FILE: $COPIED_FILE PRIVILEGES_BIN: $PRIVILEGES_BIN"
         fi
     fi
 }
@@ -435,7 +432,7 @@ remote_script() {
     remote_server=$2
     remote_tmp=$3
 
-    info "remote_script" "started" "script_file: $script_file, remote_server: $remote_server, remote_temp: $remote_tmp, EXEC: $EXEC"
+    info "remote_script" "starting" "script_file: $script_file, remote_server: $remote_server, remote_temp: $remote_tmp, EXEC: $EXEC, PRIVILEGES_BIN=$PRIVILEGES_BIN"
 
     if [ -f "${script_file}" ]; then
         if [ -z "${remote_server}" ]; then
@@ -451,7 +448,7 @@ remote_script() {
             chmod u+x ${remote_tmp}/${file_name} && \
             ${EXEC} ${remote_tmp}/${file_name}" < "$script_file"
     fi
-    info "remote_script" "completed" "script_file: $script_file, remote_server: $remote_server, remote_temp: $remote_tmp, EXEC: $EXEC"
+    info "remote_script" "completed" "script_file: $script_file, remote_server: $remote_server, remote_temp: $remote_tmp, EXEC: $EXEC, PRIVILEGES_BIN=$PRIVILEGES_BIN"
 }
 
 ##
@@ -462,7 +459,7 @@ remote_script() {
 delete_copied_files() {
     remote_server=$1
     info "delete_copied_files" "remote_server: $remote_server" 
-    if [ "$DELETE_COPIED_FILES" = true ]; then
+    if [ "$DELETE_COPIED_FILES" = "true" ]; then
         if [ -n "$COPIED_FILE" ]; then
             ssh $SSH_PARAMS "${remote_server}" "${EXEC} rm $COPY_ROOT_DIR/$COPIED_FILE"
             debug "delete_copied_files" "deleted file: $remote_server:$COPY_ROOT_DIR/$COPIED_FILE" "delete_copied_files: $DELETE_COPIED_FILES, copy_root_dir: $COPY_ROOT_DIR, copied_file: $COPIED_FILE, copied_dir: $COPIED_DIR, EXEC: $EXEC"
@@ -620,6 +617,7 @@ do
             [ $# -gt 1 ] || usage "-ep requires an elevation tool [sudo|doas]"
             shift
             PRIVILEGES_BIN="$1"
+            EXEC="$PRIVILEGES_BIN sh -c "
             ;;
         -*)
             usage "unknown option $1"
@@ -629,12 +627,7 @@ do
 done
 
 # ---[ RUNTIME ]--------------------------------------------------
-# allow to use a privilege escalation program
-if [ "$PRIVILEGES" -eq 1 ]; then
-    EXEC="$PRIVILEGES_BIN"
-    TAR_EXEC="$PRIVILEGES_BIN"
-    debug "runtime" "EXEC: $EXEC, TAR_EXEC: $TAR_EXEC"
-fi
+debug "runtime" "EXEC: $EXEC, PRIVILEGES_BIN: $PRIVILEGES_BIN"
 
 # use ControlMaster to make connections persistent
 if [ $SSHONCE -eq 1 ]; then
@@ -674,14 +667,14 @@ do
   copy_files "${USE_DIR}-${HOSTNAME}" "${remote_server}" "$TEMPDIR"
   copy_single_file "${COPY_FILE}" "${remote_server}" "$TEMPDIR"
   copy_single_file "${COPY_FILE}-${HOSTNAME}" "${remote_server}" "$TEMPDIR"
-  if [ "$INVOKE_REMOTE_SCRIPT" ]; then
+  if [ "$INVOKE_REMOTE_SCRIPT" = "true" ]; then
       remote_script "${USE_FILE}" "${remote_server}" "$TEMPDIR"
       remote_script "${USE_FILE}-${HOSTNAME}" "${remote_server}" "$TEMPDIR"
   fi
-  if [ "$DELETE_DRIST_DIR" ]; then
+  if [ "$DELETE_DRIST_DIR" = "true" ]; then
       delete_temp "${remote_server}" "$TEMPDIR"
   fi
-  if [ "$DELETE_COPIED_FILES" = true ]  && [ "$COPY_DRIST_DIR" = false ]; then
+  if [ "$DELETE_COPIED_FILES" = "true" ]  && [ "$COPY_DRIST_DIR" = false ]; then
     delete_copied_files "${remote_server}"
   fi
 
