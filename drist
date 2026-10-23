@@ -267,16 +267,15 @@ error(){
 }
 
 
-# test
-test_logging(){
-  update_log_level $1
-  echo "test_logging"
-  echo "test_logging: GLOBAL_LOG_LEVEL=$GLOBAL_LOG_LEVEL"
-  trace "test_trace" "msg" "data1" "data2" "data3" "data4"
-  debug "test_debug" "msg" "data1" "data2" "data3" "data4"
-  info "test_info" "msg" "data1" "data2" "data3" "data4"
-  warn "test_warn" "msg" "data1" "data2" "data3" "data4"
-}
+# test_logging(){
+#   update_log_level $1
+#   echo "test_logging"
+#   echo "test_logging: GLOBAL_LOG_LEVEL=$GLOBAL_LOG_LEVEL"
+#   trace "test_trace" "msg" "data1" "data2" "data3" "data4"
+#   debug "test_debug" "msg" "data1" "data2" "data3" "data4"
+#   info "test_info" "msg" "data1" "data2" "data3" "data4"
+#   warn "test_warn" "msg" "data1" "data2" "data3" "data4"
+# }
 
 # test_logging
 # test_logging: GLOBAL_LOG_LEVEL=0
@@ -299,14 +298,14 @@ test_logging(){
 # test_logging
 # test_logging: GLOBAL_LOG_LEVEL=4
 
-logging_test(){
-    test_logging "trace"
-    test_logging "debug"
-    test_logging "info"
-    test_logging "warn"
-    test_logging "error"
-    exit 1
-}
+# logging_test(){
+#     test_logging "trace"
+#     test_logging "debug"
+#     test_logging "info"
+#     test_logging "warn"
+#     test_logging "error"
+#     exit 1
+# }
 
 # 
 # ---[ HELPERS ]--------------------------------------------------
@@ -319,15 +318,15 @@ usage() {
     echo "$0 -h   | --help                     : display this help message"
     echo "$0 -ll  | --log-level                : configure log level [trace|debug|info|warn|error]"
     echo "$0 -th  | --truncate-hostname        : truncate hostname"
-    echo "$0 -nc  | --no-copy-drist-dir        : do not copy the temp .drist_XXX dir"
-    echo "$0 -crd | --copy-root-dir            : root directory to copy the temp .drist_XXX dir to"
+    echo "$0 -nc  | --no-copy-drist-dir        : do NOT copy the temp .drist_XXX dir"
+    echo "$0 -cr  | --copy-root-dir            : root directory to copy the temp .drist_XXX dir to"
     echo "$0 -ps  | --persistent-ssh           : configure ssh connection to be persistent"
-    echo "$0 -dcf | --delete-copied-files      : delete copied files from the copy root dir when script finishes"
+    echo "$0 -dc  | --delete-copied-files      : delete copied files from the copy root dir when script finishes"
     echo "$0 -sf  | --script-file              : script file to run"
     echo "$0 -ud  | --upload-dir               : directory to upload to remote server"
     echo "$0 -uf  | --upload-file              : file to upload to remote server"
-    echo "$0 -si  | --skip-invoke              : skip invoking remote script (dry-run)"
-    echo "$0 -ndd | --no-delete-drist-dir      : do NOT delete remote temp .drist_XXX dir (debugging)"
+    echo "$0 -si  | --no-invoke                : do NOT invoke the remote script (dry-run)"
+    echo "$0 -nd  | --no-delete-drist-dir      : do NOT delete remote temp .drist_XXX dir (debugging)"
     echo "$0 -ep  | --elevate-permissions      : elevate permissions using [sudo|doas|...]"
     exit 0
 }
@@ -573,7 +572,7 @@ do
             # do not copy the temp .drist dir to a separate directory
             COPY_DRIST_DIR=false
             ;;
-        "-crd"|"--copy-root-directory")
+        "-cr"|"--copy-root-directory")
             [ $# -gt 1 ] || usage "-crd requires a root directory to copy files to"
             shift
             old_copy_root_dir="$COPY_ROOT_DIR"
@@ -583,7 +582,7 @@ do
         "-ps"|"--persistent-ssh")
             SSHONCE=1
             ;;
-        "-dcf"|"--delete-copied-files")
+        "-dc"|"--delete-copied-files")
             # delete copied files when script finishes
             DELETE_COPIED_FILES=true
             ;;
@@ -605,11 +604,11 @@ do
             shift
             COPY_FILE="$1"
             ;;
-        "-si"|"--skip-invoke")
+        "-ni"|"--no-invoke")
             # skip invoking the remote script, useful for debugging scripts
             INVOKE_REMOTE_SCRIPT=false
             ;;
-        "-ndd"|"--no-delete-drist-dir")
+        "-nd"|"--no-delete-drist-dir")
             # don't delete the temp .drist dir, useful for debugging scripts
             DELETE_DRIST_DIR=false
             ;;

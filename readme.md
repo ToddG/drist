@@ -1,19 +1,17 @@
 # drist
 
-*_NOTE_*: This is a fork of the original drist. See the [HISTORY](#history) section below.
+version 3.0.0
 
-*_NOTE_*: This software is not intended for human use -- self-enforcing agreement.
+*_NOTE_*: This is a heavily modified fork of a fork of the original drist. See the [HISTORY](#history) section below.
+This tool is for use with [glm_freebsd_cloud](https://git.sr.ht/~toddg/glm_freebsd_cloud), and as such, makes to promises for other users or use cases.
 
 ## BRIEF
 drist is a tool to configure and synchronize configurations to, and/or run scrips on remote host(s) via ssh(1).
 
-## SYNOPSIS
-    drist [-x] [-v] [-vv] [-p] [-d] [-e [sudo|doas]] [-r remote-root-directory] [-S script] [-f files-directory] [-F file-to-copy] destination [...]
-
 ## DESCRIPTION
 Remote host configuration preformed with files and scripts without any special configuration syntaxes/languages, daemons, or agents. drist relies on base tools like sed(1), and ssh(1) and aims at being a simple to use and a pluggable automation tool.
 
-When executed without optional "-F", "-f", "-S" flags, drist will execute the following steps from the current working directory:
+When executed without optional --script-file, --upload-dir, or --upload-file flags, drist will execute the following steps from the current working directory:
 
 1. If folder 'files' or 'files-HOSTNAME'  exists, its content is copied to server.
 2. If file 'script' or 'script-HOSTNAME' exists, executed on remote server via ssh(1).
@@ -25,32 +23,27 @@ If the 'folder' or the 'script' file does not exist, drist will skip it.
 drist also supports execution from a different working directory via the use of optional command flags to specify the script or files to be uploaded. See the options and examples sections below.
 
 ## OPTIONS
--p      Use persistent ssh connection, allowing ssh only once for the different steps.  This uses ControlMaster feature from ssh(1).
 
--d      Truncate reported hostname.  Tells drist to truncate the reported remote hostname to the left-most component.
+  drist $ drist -h
 
--e      [sudo|doas] execute as privileged command (as root) on the remote server via binary.  Default is `doas`.
+  v3.0.0
+  [-h| -help] [-v] [-vv] [-th] [-nc] [-cr] [-ps] [-dc] [-sf] [-ud] [-uf] [-si] [-nd] [-ep [sudo|doas|...]] destination [...]
+  -h   | --help                     : display this help message
+  -ll  | --log-level                : configure log level [trace|debug|info|warn|error]
+  -th  | --truncate-hostname        : truncate hostname
+  -nc  | --no-copy-drist-dir        : do NOT copy the temp .drist_XXX dir
+  -cr  | --copy-root-dir            : root directory to copy the temp .drist_XXX dir to
+  -ps  | --persistent-ssh           : configure ssh connection to be persistent
+  -dc  | --delete-copied-files      : delete copied files from the copy root dir when script finishes
+  -sf  | --script-file              : script file to run
+  -ud  | --upload-dir               : directory to upload to remote server
+  -uf  | --upload-file              : file to upload to remote server
+  -ni  | --no-invoke                : do NOT invoke the remote script
+  -nd  | --no-delete-drist-dir      : do NOT delete remote temp .drist_XXX dir (debugging)
+  -ep  | --elevate-permissions      : elevate permissions using [sudo|doas|...]
 
--S      (script) Use a specified script instead of a file called `script` found in local directory.
 
--f      (directory) Use a specified directory to upload instead of a local directory of `files` directory.
-
--F      (file) A single file to upload instead of one found in a `files` directory.
-
--n      Do not copy the files out of the remote temp directory. Instead, let the script reference the files from the remote temp directory.
-        The remote temp directory is the current working directory of the script.
-
--r      (directory) Root directory to copy files, defaults to $HOME on the remote
-
--v      Enable logging
-
--vv     Enable verbose logging
-
--x      Delete copied files froom root directory
-
--X      Do NOT delete the remote .drist directory (useful for debugging, don't use this flag in production)
-
-destination     Specify the remote servers you want drist to work on. The destination can be a file containing a list of hosts, one per line or it can be addresses passed in the command line. If you specify multiples servers, drist will loop over the list respecting the list order.  Note that only one file can be used in the command line.
+  destination     Specify the remote servers you want drist to work on. The destination can be a file containing a list of hosts, one per line or it can be addresses passed in the command line. If you specify multiples servers, drist will loop over the list respecting the list order.  Note that only one file can be used in the command line.
 
 ## PORTABLE, FRICTION-LESS REMOTE DEPLOYS
 
@@ -83,50 +76,16 @@ the ubiquitous Unix tool set.
 
 ## BUILD
 default install location: /usr/local/bin
-default man path location: /usr/local/share/man/man1
 ```sh
-    # doas make install
+    # make && sudo make install
 ```
 
-To change the default install locations the included "configure"
-script can be used.
-
-```sh
-    # ./configure --prefix=/location/to/instal/to
-    # ./configure --mandir=/location/for/man/pages
- ```
 
 ## EXAMPLES
-The following examples demonstrate usage with the optional file and directory specifier flags for clarity.
-
-Upload and execute a script ("setup.sh") on the ACME host.
-```
-   # drist -S /place/where/scripts/reside/setup.sh ACME
-```
-
-Upload and execute a script ("setup.sh") on the ACME host using elevated permissions with `doas`.
-```
-   # drist -e -S /place/where/scripts/reside/setup.sh ACME
-```
-
-Upload and execute a script ("setup.sh") on the ACME host using elevated permissions with `sudo`.
-```
-   # drist -e sudo -S /place/where/scripts/reside/setup.sh ACME
-```
-
-Upload a file ("upload.file") to the ACME host.
-```
-    # drist -F /place/where/files/reside/upload.file ACME
-```
-
-Upload all files in a directory to the ACME host.
-```
-    # drist -f /place/where/files/reside/ ACME
-```
+TODO: update examples with the updated params.
 
 ## HISTORY
-- Originally created by Solène Rapenne <solene@perso.pw>
-The original drist is located: 
-https://dataswamp.org/~solene/page-drist-official-website.html
-
-- Updated by John Kaul. Please see the [CHANGE LOG](CHANGELOG) for updates.
+- Originally created by [Solène Rapenne <solene@perso.pw>](https://dataswamp.org/~solene/page-drist-official-website.html)
+- Forked by [John Kaul](https://github.com/JohnKaul/drist)
+- Note, John's repo is probably what you want to use.
+- This repo is heavily modified for use with [glm_freebsd_cloud](https://git.sr.ht/~toddg/glm_freebsd_cloud)

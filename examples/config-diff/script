@@ -1,9 +1,0 @@
-#!/bin/sh
-# vim: shiftwidth=4:
-
-# Run diff(1)
-diff $HOME/file.one $HOME/file.two
-
-# Cleanup.
-rm $HOME/file.one
-rm $HOME/file.two
